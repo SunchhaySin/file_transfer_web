@@ -7,7 +7,7 @@ import dragAndDropImage from '../../assets/drag-drop-svgrepo-com.svg';
 
 export default function FileSelectionPanel() {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const {windowWidth, isTablet, isDesktop} = useScreenSize();
+    const {windowWidth, isMobile, isTablet, isDesktop} = useScreenSize();
     const { setIsSelectionPanel, selectedFiles, addSelectedFiles, removeSelectedFile, setIsTransferPanel, resetFilesList } = useStateProvider(
         useShallow((state) => ({
             setIsSelectionPanel: state.setIsSelectionPanel,
@@ -67,13 +67,20 @@ export default function FileSelectionPanel() {
   return (
     <div
       className={`flex-1 flex flex-col justify-between items-center bg-white/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0
-        ${
-          isDesktop
-            ? "px-18 py-8 w-250"
-            : isTablet
-              ? "px-10 py-6 w-125"
-              : "px-4 py-3 w-80"
-        }`}
+         ${isDesktop ? "max-h-[calc(100lvh-19rem)]" : isTablet && windowWidth >= 1000 ? "max-h-[calc(100lvh-16rem)]" : isMobile && "max-h-[calc(100lvh-14rem)]"}
+         ${
+              isDesktop
+                ? "px-10 py-6 w-250"
+                : isTablet && windowWidth >= 1100
+                  ? "px-8 py-4 w-200"
+                  : windowWidth >= 1000
+                    ? "px-6 py-3 w-175"
+                    : windowWidth >= 800 
+                      ? "px-4 py-2 w-150" 
+                      : windowWidth >= 550 
+                        ? "px-3 py-2 w-115"
+                        : "px-3 py-2 w-80"
+            }`}
     >
       <div
         className={`flex gap-2 items-center text-black/70 bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] ${isDesktop ? "p-3 rounded-2xl" : isTablet ? "p-2 rounded-xl" : "p-1 rounded-lg"}`}
@@ -106,12 +113,12 @@ export default function FileSelectionPanel() {
           <path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z" />
         </svg>
       </div>
-      {windowWidth >= 1280 && (
+      {windowWidth >= 800 && (
         <hr className="border border-black/20 w-full mt-1" />
       )}
       <div
-        className={`flex gap-4 items-center w-full flex-1 min-h-0
-            ${windowWidth >= 1280 ? "flex-row" : "flex-col"}`}
+        className={`flex gap-4 items-strech w-full flex-1 min-h-0
+            ${windowWidth >= 1000 ? "flex-row" : "flex-col"}`}
       >
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -120,7 +127,7 @@ export default function FileSelectionPanel() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={`group flex flex-col items-center justify-center gap-2 p-4 rounded-2xl cursor-pointer transition-colors duration-300 ease-in-out
-                    ${windowWidth >= 1280 ? "h-full flex-1" : "w-full flex-1"}
+                    ${windowWidth >= 1280 ? "flex-1" : "w-full flex-1"}
                     ${isDragging
                       ? "border-blue-500 bg-blue-400/50 scale-[0.98] shadow-[inset_0_4px_12px_rgba(0,0,0,0.25)]"
                       : 'bg-gray-300/60 border border-gray-400/40 hover:bg-blue-300/40'
@@ -168,12 +175,14 @@ export default function FileSelectionPanel() {
         {selectedFiles.length > 0 ? (
           <div
             className={`bg-gray-300 flex flex-col rounded-2xl min-h-0 overflow-hidden
-                ${windowWidth >= 1280 ? "h-full flex-1" : "w-full flex-2"}`}
+                ${windowWidth >= 1280 ? "flex-1" : "w-full flex-2"}`}
           >
             <p className="font-bold text-lg text-center bg-blue-300 p-2 rounded-lg">
               Selected Files
             </p>
-            <ul className="w-full bg-gray-300 flex-1 flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto min-h-0">
+            <ul className={`w-full bg-gray-300 flex-1 flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto min-h-0 
+                ${isTablet && windowWidth < 1000 && "max-h-65"}
+              `}>
               {selectedFiles.map((file, index) => (
                 <li
                   key={index}
@@ -211,7 +220,7 @@ export default function FileSelectionPanel() {
         ) : (
           <div
             className={`bg-gray-400/30 border border-gray-400/40 flex items-center justify-center p-2 rounded-2xl
-                ${windowWidth >= 1280 ? "h-full flex-1" : "w-full flex-1"}
+                ${windowWidth >= 1280 ? "flex-1" : "w-full flex-1"}
                 ${isDesktop ? "text-md" : isTablet ? "text-sm" : "text-xs"}`}
           >
             <p className="text-gray-700">No Files Selected !!</p>
