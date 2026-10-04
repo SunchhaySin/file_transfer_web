@@ -40,9 +40,6 @@ interface TransferState {
 
 type AppState = NavigationPanelState & SelectedFilesState & TransferState & DiscoveryStoreState;
 
-let queue: { peerId: string; files: File[] } | null = null;
-let advancing = false;
-
 export const useStateProvider = create<AppState>((set, get) => ({
   // Navigation Panel State
   isSelectionPanel: false,
@@ -54,7 +51,7 @@ export const useStateProvider = create<AppState>((set, get) => ({
   selectedFiles: [],
   addSelectedFiles: (files) => set((state) => ({ selectedFiles: [...state.selectedFiles, ...files] })),
   removeSelectedFile: (file) => set((state) => ({
-    selectedFiles: state.selectedFiles.filter((f) => f.name !== file.name),
+    selectedFiles: state.selectedFiles.filter((f) => f !== file),
   })),
   resetFilesList: () => set(() => ({selectedFiles: []})),
 
@@ -75,20 +72,12 @@ export const useStateProvider = create<AppState>((set, get) => ({
   sendSelectedFiles: () => {
     const { selectedFiles, selectedPeer } = get();
     if (!selectedPeer || selectedFiles.length === 0) return;
-    const [first, ...rest] = selectedFiles;
-    queue = rest.length > 0 ? { peerId: selectedPeer.id, files: rest } : null;
-    void transfer.send(selectedPeer.id, first);
+    void transfer.send(selectedPeer.id, selectedFiles);
   },
   acceptTransfer: () => transfer.accept(),
   declineTransfer: () => transfer.decline(),
-  clearTransfer: () => {
-    queue = null;
-    transfer.reset();
-  },
-  cancelRequest: () => {
-    queue = null;
-    transfer.cancelRequest();
-  },
+  clearTransfer: () => transfer.reset(),
+  cancelRequest: () => transfer.cancelRequest(),
 }));
 
 // Connect to the peer Discovery service
@@ -101,27 +90,8 @@ const syncDiscovery = () => {
 
 // Connect to the file handler service (send && receive)
 const syncTransfer = () => {
-  const snap = transfer.getSnapshot();
-  useStateProvider.setState({ transferState: snap });
- 
-  if (!queue || snap.direction !== "send") return;
- 
-  if (snap.status === "failed" || snap.status === "rejected") {
-    queue = null; // stop sending the rest if one fails or is declined
-  } else if (snap.status === "complete" && !advancing) {
-    const next = queue.files.shift();
-    const peerId = queue.peerId;
-    if (queue.files.length === 0) queue = null;
-    if (next) {
-      advancing = true;
-      setTimeout(() => {
-        advancing = false;
-        void transfer.send(peerId, next);
-      }, 0); // defer so we don't start a transfer inside transfer's own notify loop
-    }
-  }
+  useStateProvider.setState({ transferState: transfer.getSnapshot() });
 };
-
 
 const unsubDiscovery = peerDiscovery.subscribe(syncDiscovery);
 const unsubTransfer = transfer.subscribe(syncTransfer);

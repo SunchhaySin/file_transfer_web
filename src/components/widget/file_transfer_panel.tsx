@@ -19,7 +19,6 @@ export default function FileTransferPanel() {
     transferState: t,
     sendSelectedFiles,
     clearTransfer,
-    cancelRequest, 
   } = useStateProvider(
     useShallow((state) => ({
       setIsSelectionPanel: state.setIsSelectionPanel,
@@ -34,26 +33,15 @@ export default function FileTransferPanel() {
       transferState: state.transferState,
       sendSelectedFiles: state.sendSelectedFiles,
       clearTransfer: state.clearTransfer,
-      cancelRequest: state.cancelRequest, 
     })),
   );
 
   const busy = ["connecting", "awaiting-accept", "transferring"].includes(
     t.status,
   );
-  const isSending = t.direction === "send" && t.status !== "idle";
+
   const canShare =
     connected && !!selectedPeer && selectedFiles.length > 0 && !busy;
-
-  const statusLabel = {
-    idle: "",
-    connecting: "Connecting...",
-    "awaiting-accept": "Waiting for the other device to accept...",
-    transferring: "Sending...",
-    complete: "Sent successfully",
-    failed: `Failed: ${t.error ?? "unknown error"}`,
-    rejected: "The other device declined the transfer",
-  }[t.status];
 
   const onShare = () => {
     if (!canShare) {
@@ -80,11 +68,11 @@ export default function FileTransferPanel() {
             ${isDesktop ? "max-h-[calc(100lvh-19rem)]" : isTablet && windowWidth >= 1000 ? "max-h-[calc(100lvh-16rem)]" : isMobile && "max-h-[calc(100lvh-14rem)]"}
             ${
               isDesktop
-                ? "px-10 py-6 w-250"
+                ? "px-8 py-4 w-250"
                 : isTablet && windowWidth >= 1100
-                  ? "px-8 py-4 w-200"
+                  ? "px-6 py-3 w-200"
                   : windowWidth >= 1000
-                    ? "px-6 py-3 w-175"
+                    ? "px-5 py-2 w-175"
                     : windowWidth >= 800
                       ? "px-4 py-2 w-150"
                       : windowWidth >= 550
@@ -101,7 +89,7 @@ export default function FileTransferPanel() {
         <hr className="border border-black/20 w-full mt-1" />
       )}
       <div
-        className={`${windowWidth >= 1000 ? "grid grid-cols-2 gap-3" : "flex flex-col gap-2"} w-full flex-1 min-h-0 ${isDesktop ? "px-6 py-4" : isTablet ? "px-4 py-3" : "px-2 py-2"}`}
+        className={`${windowWidth >= 1000 ? "grid grid-cols-2 gap-3" : "flex flex-col gap-2"} w-full flex-1 min-h-0 ${isDesktop ? "px-4 py-2" : isTablet ? "px-3 py-2" : "px-2 py-1"}`}
       >
         {selectedFiles.length > 0 && (
           <ul
@@ -127,7 +115,7 @@ export default function FileTransferPanel() {
         )}
         <div className="flex flex-col gap-1 justify-center items-center flex-1">
           <div
-            className={`bg-gray-200 flex-1 flex flex-col gap-3 min-h-0 w-full rounded-2xl ${boxPadding}`}
+            className={`bg-gray-200 flex-3 flex flex-col gap-3 justify-center min-h-0 w-full rounded-2xl ${boxPadding}`}
           >
             <div className="flex flex-col items-center">
               <button
@@ -163,7 +151,7 @@ export default function FileTransferPanel() {
                         onClick={() => setSelectedPeer(selected ? null : p)}
                         disabled={busy}
                         aria-pressed={selected}
-                        className={`rounded-full flex items-center justify-center font-semibold transition-all duration-200 cursor-pointer disabled:cursor-not-allowed
+                        className={`shrink-0 rounded-full flex items-center justify-center font-semibold transition-all duration-200 cursor-pointer disabled:cursor-not-allowed
                           ${isDesktop ? "h-14 w-14 text-xl" : isTablet ? "h-12 w-12 text-lg" : "h-10 w-10"}
                           ${
                             selected
@@ -185,44 +173,9 @@ export default function FileTransferPanel() {
             ) : (
               <p>No devices found</p>
             )}
-
-            {isSending && (
-              <div className="w-full flex flex-col items-center gap-1">
-                <p
-                  className={`text-center ${t.status === "failed" || t.status === "rejected" ? "text-red-600" : t.status === "complete" ? "text-green-700" : ""}`}
-                >
-                  {statusLabel}
-                </p>
-                {(t.status === "transferring" || t.status === "complete") && (
-                  <>
-                    <progress
-                      value={t.progress}
-                      max={1}
-                      className="w-full h-3"
-                    />
-                    <p className="text-sm truncate max-w-full">
-                      {t.fileName} - {Math.round(t.progress * 100)}%
-                    </p>
-                  </>
-                )}
-                {!busy && (
-                  <button onClick={clearTransfer} className="text-sm underline">
-                    Dismiss
-                  </button>
-                )}
-                {t.status === "awaiting-accept" && (
-                  <button
-                    onClick={cancelRequest}
-                    className="mt-1 px-3 py-1 rounded-xl bg-red-400 hover:bg-red-500 text-sm font-semibold"
-                  >
-                    Cancel request
-                  </button>
-                )}
-              </div>
-            )}
           </div>
           <div
-            className={`bg-gray-200 flex-1 w-full rounded-2xl ${isDesktop ? "px-6 py-4" : isTablet ? "px-4 py-3" : "px-2 py-2"} flex flex-col items-center`}
+            className={`bg-gray-200 flex-1 w-full rounded-2xl ${isDesktop ? "px-6 py-4" : isTablet ? "px-4 py-3" : "px-2 py-2"} flex flex-col items-center justify-center`}
           >
             <button className="font-semibold bg-green-400 hover:bg-green-500 px-2 py-1 rounded-xl border border-black/50">
               Generate QR-code
@@ -236,7 +189,10 @@ export default function FileTransferPanel() {
       <div className="flex items-center gap-4 w-full">
         <button
           className="flex-1 py-2 bg-blue-400 rounded-xl hover:bg-blue-500 transition-colors duration-200 ease-in-out cursor-pointer"
-          onClick={() => setIsTransferPanel(false)}
+          onClick={() => {
+            setIsTransferPanel(false);
+            setIsSelectionPanel(true);
+          }}
         >
           Back
         </button>

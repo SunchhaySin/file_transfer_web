@@ -16,11 +16,11 @@ export default function StatusCheck({
   myDeviceName,
 }: Properties) {
   return (
-    <div className="fixed inset-0 flex bg-black/40 items-center justify-center rounded-xl z-100">
+    <div className={`${isCheckStatus && "fixed inset-0 flex bg-black/40 items-center justify-center z-100"}`}>
       <div
         aria-hidden={!isCheckStatus}
-        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 bg-white/80 px-5 py-2 w-80 rounded-lg
-              transition-all duration-300 ease-in-out shadow-[0px_0px_2px_0.5px_green]
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 bg-white px-5 py-2 w-80 rounded-lg
+              transition-all duration-300 ease-in-out shadow-[0px_0px_2px_0.5px_amber]
               ${
                 isCheckStatus
                   ? "opacity-100 translate-y-0"
@@ -45,31 +45,37 @@ export default function StatusCheck({
           <span>{connected ? "Connected" : "Not Connected"}</span>
         </span>
         <hr className="border-1/2 border-black/50 w-full mt-1" />
-        {myDeviceName.length > 0 ? (
-          <div className="flex flex-col gap-1 items-center justify-center">
-            <p>Discoverable as: {myDeviceName}</p>
-            <button
-              onClick={() => {
-                setIsCheckStatus(false);
-                setIsNamingDevice(true);
-              }}
-              className="border border-black/60 bg-green-400/60 hover:bg-green-400 py-0.5 px-2 rounded-xl"
-            >
-              Rename Device
-            </button>
-          </div>
+        {connected ? (
+          myDeviceName.length > 0 ? (
+            <div className="flex flex-col gap-1 items-center justify-center">
+              <p>Discoverable as: {myDeviceName}</p>
+              <button
+                onClick={() => {
+                  setIsCheckStatus(false);
+                  setIsNamingDevice(true);
+                }}
+                className="border border-black/60 bg-green-400/60 hover:bg-green-400 py-0.5 px-2 rounded-xl"
+              >
+                Rename Device
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1 items-center justify-center">
+              <p>{"Discoverable - (Device Not Named)"}</p>
+              <button
+                onClick={() => {
+                  setIsCheckStatus(false);
+                  setIsNamingDevice(true);
+                }}
+                className="border border-black/60 bg-green-400/60 hover:bg-green-400 py-0.5 px-2 rounded-xl"
+              >
+                Name Device
+              </button>
+            </div>
+          )
         ) : (
           <div className="flex flex-col gap-1 items-center justify-center">
-            <p>{"Discoverable - (Device Not Named)"}</p>
-            <button
-              onClick={() => {
-                setIsCheckStatus(false);
-                setIsNamingDevice(true);
-              }}
-              className="border border-black/60 bg-green-400/60 hover:bg-green-400 py-0.5 px-2 rounded-xl"
-            >
-              Name Device
-            </button>
+            <p>Not Discoverable</p>
           </div>
         )}
       </div>

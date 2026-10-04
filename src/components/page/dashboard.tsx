@@ -8,7 +8,8 @@ import FileTransferPanel from "../widget/file_transfer_panel";
 import { peerDiscovery } from "../../utils/handlers/peer_discovery";
 import StatusCheck from "../widget/statusCheck";
 import DeviceNaming from "../widget/device_naming";
-import TransferDialogHost  from "../dialog/transfer_dialogs";
+import TransferDialogSender from "../dialog/tranfer_dialog_sender";
+import TransferDialogReceiver from "../dialog/transfer_dialog_receiver";
 
 export default function Dashboard() {
   // Screen Sizes and confirguration
@@ -66,7 +67,7 @@ export default function Dashboard() {
           </p>
         </div>
         <AppLabel />
-        <button className="bg-blue-200 rounded-xl p-4 py-1 border border-black flex gap-2 items-center">
+        <button className="bg-blue-100 rounded-xl p-4 py-1 border border-black flex gap-2 items-center">
           <p className="font-semibold">Check Connection Status</p>
           {isCheckStatus ? (
             <svg
@@ -96,15 +97,13 @@ export default function Dashboard() {
             </svg>
           )}
         </button>
-        {isCheckStatus && (
-          <StatusCheck
-            isCheckStatus={isCheckStatus}
-            setIsCheckStatus={setIsCheckStatus}
-            setIsNamingDevice={setIsNamingDevice}
-            connected={connected}
-            myDeviceName={myDeviceName}
-          />
-        )}
+        <StatusCheck
+          isCheckStatus={isCheckStatus}
+          setIsCheckStatus={setIsCheckStatus}
+          setIsNamingDevice={setIsNamingDevice}
+          connected={connected}
+          myDeviceName={myDeviceName}
+        />
 
         <hr className="border border-black/50 w-full mt-2" />
       </div>
@@ -137,7 +136,7 @@ export default function Dashboard() {
         </button>
       )}
       {!isSelectionPanel && !isTransferPanel && isNamingDevice && (
-        <DeviceNaming 
+        <DeviceNaming
           setIsNamingDevice={setIsNamingDevice}
           setDeviceName={setDeviceName}
           saveDeviceName={saveDeviceName}
@@ -146,7 +145,8 @@ export default function Dashboard() {
 
       {isSelectionPanel && <FileSelectionPanel />}
       {isTransferPanel && <FileTransferPanel />}
-      <TransferDialogHost  />
+      <TransferDialogSender />
+      <TransferDialogReceiver />
     </div>
   );
 }

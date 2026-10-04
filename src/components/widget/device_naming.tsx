@@ -12,7 +12,7 @@ export default function DeviceNaming({
   saveDeviceName,
 }: Properties) {
   return (
-    <div className="fixed inset-0 flex bg-black/40 items-center justify-center rounded-xl z-100">
+    <div className="fixed inset-0 flex bg-black/40 items-center justify-center z-100">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/80 flex flex-col item-center justify-center gap-6 px-10 py-4 rounded-2xl">
         <div>
           <div className="relative flex items-center justify-center">

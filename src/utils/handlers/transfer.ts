@@ -1,28 +1,37 @@
-// transfer.ts - WebRTC connection + file transfer, driven by the shared signaling instance
-import { signaling } from '../config/signaling'; // must be the SAME file peer_discovery.ts imports
+// transfer.ts - orchestrates ONE batch of files over ONE connection.
+import { signaling } from '../config/signaling';
+import { PeerLink } from './webRTC';
+import { prepareFiles, sanitizeMetas, streamFile, FileAssembler } from './file_stream';
+import type { FileMeta } from './file_stream';
 
-const CHUNK = 16 * 1024;
-const HIGH_WATER = 4 * 1024 * 1024;
 const CONNECT_TIMEOUT_MS = 15_000;
 
 export type Status =
   | 'idle' | 'connecting' | 'awaiting-accept' | 'transferring'
   | 'complete' | 'failed' | 'rejected';
 
+export interface ReceivedFile {
+  name: string;
+  size: number;
+  url: string;
+}
+
 export interface TransferState {
   status: Status;
   direction: 'send' | 'receive' | null;
   peerId: string | null;
-  fileName: string;
-  fileSize: number;
-  progress: number; // 0..1
-  downloadUrl: string | null;
-  error: string | null;
+  files: FileMeta[];       // every file in this batch
+  fileIndex: number;       // file currently moving (0-based)
+  fileName: string;        // name of the current file
+  fileSize: number;        // TOTAL bytes of the whole batch
+  progress: number;        // overall progress by bytes, 0..1
+  received: ReceivedFile[]; // finished incoming files (receiver)
+  error: string | null;    // failure text, or 'declined' | 'cancelled' | 'busy' when rejected
 }
 
 const initial: TransferState = {
-  status: 'idle', direction: null, peerId: null, fileName: '',
-  fileSize: 0, progress: 0, downloadUrl: null, error: null,
+  status: 'idle', direction: null, peerId: null, files: [], fileIndex: 0,
+  fileName: '', fileSize: 0, progress: 0, received: [], error: null,
 };
 
 const ACTIVE: Status[] = ['connecting', 'awaiting-accept', 'transferring'];
@@ -32,28 +41,23 @@ class TransferManager {
   private listeners = new Set<() => void>();
   private unsubs: Array<() => void> = [];
 
-  private pc: RTCPeerConnection | null = null;
-  private dc: RTCDataChannel | null = null;
-  private pendingIce: RTCIceCandidateInit[] = [];    // their candidates, waiting for setRemoteDescription
-  private localIceQueue: RTCIceCandidateInit[] = []; // our candidates, held until the offer/answer is sent
-  private localIceReady = false;
+  private link: PeerLink | null = null;
+  private outgoing: File[] = [];                 // sender: files waiting to be streamed
+  private incoming: FileAssembler | null = null; // receiver: the file currently arriving
+  private doneBytes = 0;                         // receiver: bytes of finished files
   private connectTimer: number | null = null;
-
-  private file: File | null = null;
-  private meta: { name: string; size: number; mime: string } | null = null;
-  private chunks: ArrayBuffer[] = [];
-  private received = 0;
 
   constructor() {
     this.unsubs.push(
       signaling.on('offer', (from, sdp) => void this.onOffer(from, sdp)),
       signaling.on('answer', (from, sdp) => void this.onAnswer(from, sdp)),
-      signaling.on('ice', (from, c) => void this.onIce(from, c)),
-      signaling.on('reject', (from) => {
-        if (from === this.state.peerId && ACTIVE.includes(this.state.status)) {
-          this.cleanup();
-          this.set({ status: 'rejected' });
+      signaling.on('ice', (from, c) => {
+        if (this.link && from === this.state.peerId && ACTIVE.includes(this.state.status)) {
+          void this.link.addRemoteCandidate(c);
         }
+      }),
+      signaling.on('reject', (from) => {
+        if (from === this.state.peerId && ACTIVE.includes(this.state.status)) this.rejectWith('busy');
       }),
     );
   }
@@ -62,19 +66,18 @@ class TransferManager {
   destroy() {
     this.unsubs.forEach((off) => off());
     this.unsubs = [];
-    this.cleanup();
+    this.dropLink();
   }
 
-  // ---- store API (for the zustand bridge / useSyncExternalStore) ----
+  // ---- store API ----
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
     return () => { this.listeners.delete(fn); };
   };
-  
+
   getSnapshot = () => this.state;
 
   private set(patch: Partial<TransferState>) {
-    // Once we leave "connecting" the connect timeout is no longer needed
     if (patch.status && patch.status !== 'connecting') this.clearConnectTimer();
     this.state = { ...this.state, ...patch };
     this.listeners.forEach((fn) => fn());
@@ -96,24 +99,22 @@ class TransferManager {
   }
 
   // ---- public actions ----
-  async send(peerId: string, file: File) {
-    if (ACTIVE.includes(this.state.status)) return;
+  // Sends ALL the files to one peer over a single connection
+  async send(peerId: string, files: File[]) {
+    if (ACTIVE.includes(this.state.status) || files.length === 0) return;
     this.reset();
-    this.file = file;
-    this.set({ status: 'connecting', direction: 'send', peerId, fileName: file.name, fileSize: file.size });
+
+    const { metas, totalSize } = prepareFiles(files);
+    this.outgoing = files;
+    this.set({
+      status: 'connecting', direction: 'send', peerId,
+      files: metas, fileIndex: 0, fileName: metas[0].name, fileSize: totalSize,
+    });
 
     try {
-      const pc = this.createPc(peerId);
-      this.startConnectTimer(); // must come after createPc, because createPc calls cleanup()
-      this.setupChannel(pc.createDataChannel('file'));
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      if (this.pc !== pc) return; // cancelled while we were awaiting
-
-      signaling.sendOffer(peerId, offer);
-      this.releaseLocalIce(peerId); // candidates go out only AFTER the offer
-      console.log('[rtc] offer sent to', peerId);
+      const link = this.openLink(peerId);
+      this.startConnectTimer(); // after openLink, so nothing clears it
+      await link.startAsSender();
     } catch (e) {
       console.error('[rtc] send failed', e);
       this.fail('Could not start the transfer');
@@ -121,69 +122,70 @@ class TransferManager {
   }
 
   accept() {
-    this.dc?.send(JSON.stringify({ type: 'accept' }));
-    this.set({ status: 'transferring' });
+    if (this.state.direction !== 'receive' || this.state.status !== 'awaiting-accept') return;
+    this.link?.sendJson({ type: 'accept' });
+    this.set({ status: 'transferring', progress: 0 });
   }
 
   decline() {
-    try { this.dc?.send(JSON.stringify({ type: 'reject' })); } catch { /* channel closing */ }
-    this.reset();
+    this.link?.sendJson({ type: 'reject' });
+    this.reset(true);
   }
 
   // Sender only, and only while waiting for the receiver to accept
   cancelRequest() {
     if (this.state.direction !== 'send' || this.state.status !== 'awaiting-accept') return;
     const peerId = this.state.peerId;
-    try {
-      if (this.dc?.readyState === 'open') this.dc.send(JSON.stringify({ type: 'cancel' }));
-    } catch { /* channel already closing */ }
-    if (peerId) signaling.sendReject(peerId); // backup in case the message doesn't arrive
-    this.reset();
+    this.link?.sendJson({ type: 'cancel' });
+    if (peerId) signaling.sendReject(peerId); // backup in case the channel message doesn't arrive
+    this.reset(true);
   }
 
-  reset() {
-    this.cleanup();
-    if (this.state.downloadUrl) URL.revokeObjectURL(this.state.downloadUrl);
+  reset(graceful = false) {
+    this.dropLink(graceful);
+    this.state.received.forEach((f) => URL.revokeObjectURL(f.url));
     this.state = { ...initial };
     this.listeners.forEach((fn) => fn());
   }
 
-  // ---- WebRTC plumbing ----
-  private createPc(peerId: string) {
-    this.cleanup();
-    this.localIceReady = false;
-    this.localIceQueue = [];
-
-    const pc = new RTCPeerConnection({ iceServers: [] }); // LAN only: host candidates
-    pc.onicecandidate = (e) => {
-      if (!e.candidate || this.pc !== pc) return;
-      const c = e.candidate.toJSON();
-      console.log('[rtc] local candidate:', e.candidate.candidate.split(' ')[7]);
-      if (this.localIceReady) signaling.sendIce(peerId, c);
-      else this.localIceQueue.push(c); // hold until the offer/answer has been sent
-    };
-    pc.onicegatheringstatechange = () => console.log('[rtc] gathering:', pc.iceGatheringState);
-    pc.oniceconnectionstatechange = () => console.log('[rtc] ice state:', pc.iceConnectionState);
-    pc.onconnectionstatechange = () => {
-      console.log('[rtc] connection state:', pc.connectionState);
-      if (this.pc === pc && pc.connectionState === 'failed') this.fail('Connection failed');
-    };
-    this.pc = pc;
-    return pc;
+  // ---- connection lifecycle ----
+  private openLink(peerId: string) {
+    const link = new PeerLink(peerId, {
+      onOpen: () => this.onLinkOpen(),
+      onMessage: (data) => this.onMessage(data),
+      onClose: () => { if (ACTIVE.includes(this.state.status)) this.fail('Connection closed'); },
+      onError: (message) => this.fail(message),
+    });
+    this.link = link;
+    return link;
   }
 
-  private releaseLocalIce(peerId: string) {
-    this.localIceReady = true;
-    const queued = this.localIceQueue;
-    this.localIceQueue = [];
-    queued.forEach((c) => signaling.sendIce(peerId, c));
+  private dropLink(graceful = false) {
+    this.clearConnectTimer();
+    this.link?.close(graceful);
+    this.link = null;
+    this.incoming = null;
+    this.outgoing = [];
+    this.doneBytes = 0;
   }
 
+  private fail(error: string) {
+    this.dropLink();
+    this.set({ status: 'failed', error });
+  }
+
+  private rejectWith(reason: 'declined' | 'cancelled' | 'busy') {
+    this.dropLink();
+    this.set({ status: 'rejected', error: reason });
+  }
+
+  // ---- signaling handlers ----
   private async onOffer(from: string, sdp: RTCSessionDescriptionInit) {
     console.log('[rtc] offer received from', from);
 
     // A retry from the same device replaces a half-open attempt; anything else active is "busy"
-    const isRetry = this.state.status === 'connecting' && this.state.peerId === from;
+    const isRetry =
+      this.state.status === 'connecting' && this.state.direction === 'receive' && this.state.peerId === from;
     if (ACTIVE.includes(this.state.status) && !isRetry) {
       signaling.sendReject(from);
       return;
@@ -193,18 +195,9 @@ class TransferManager {
     this.set({ status: 'connecting', direction: 'receive', peerId: from });
 
     try {
-      const pc = this.createPc(from);
+      const link = this.openLink(from);
       this.startConnectTimer();
-      pc.ondatachannel = (e) => this.setupChannel(e.channel);
-      await pc.setRemoteDescription(sdp);
-      await this.flushIce();
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      if (this.pc !== pc) return; // cancelled while we were awaiting
-
-      signaling.sendAnswer(from, answer);
-      this.releaseLocalIce(from); // candidates go out only AFTER the answer
-      console.log('[rtc] answer sent to', from);
+      await link.startAsReceiver(sdp);
     } catch (e) {
       console.error('[rtc] answering failed', e);
       this.fail('Could not answer the request');
@@ -212,75 +205,36 @@ class TransferManager {
   }
 
   private async onAnswer(from: string, sdp: RTCSessionDescriptionInit) {
-    const pc = this.pc;
-    // Ignore answers that aren't for the offer we currently have out
-    if (!pc || from !== this.state.peerId || this.state.status !== 'connecting') return;
-    if (pc.signalingState !== 'have-local-offer') return;
+    const link = this.link;
+    if (!link || from !== this.state.peerId || this.state.status !== 'connecting') return;
     console.log('[rtc] answer received from', from);
     try {
-      await pc.setRemoteDescription(sdp);
-      await this.flushIce();
+      await link.applyAnswer(sdp);
     } catch (e) {
       console.error('[rtc] applying answer failed', e);
       this.fail('Connection failed');
     }
   }
 
-  private async onIce(from: string, c: RTCIceCandidateInit) {
-    const pc = this.pc;
-    // Only accept candidates for the negotiation in progress; anything else is stale
-    if (!pc || from !== this.state.peerId || !ACTIVE.includes(this.state.status)) return;
-    try {
-      if (pc.remoteDescription) await pc.addIceCandidate(c);
-      else this.pendingIce.push(c); // remote description not set yet: queue it
-    } catch (e) {
-      console.warn('[rtc] addIceCandidate failed', e);
-    }
-  }
-
-  private async flushIce() {
-    const queued = this.pendingIce;
-    this.pendingIce = [];
-    for (const c of queued) {
-      try { await this.pc?.addIceCandidate(c); } catch (e) { console.warn('[rtc] queued ICE failed', e); }
-    }
-  }
-
-  // ---- data channel ----
-  private setupChannel(dc: RTCDataChannel) {
-    dc.binaryType = 'arraybuffer';
-    dc.bufferedAmountLowThreshold = 1024 * 1024;
-    this.dc = dc;
-
-    dc.onopen = () => {
-      console.log('[rtc] data channel open');
-      if (this.state.direction === 'send' && this.file) {
-        dc.send(JSON.stringify({ type: 'meta', name: this.file.name, size: this.file.size, mime: this.file.type }));
-        this.set({ status: 'awaiting-accept' });
-      }
-    };
-    dc.onmessage = (e) => this.onMessage(e.data);
-    dc.onerror = (e) => {
-      // Errors fired because we (or the peer) closed the channel on purpose are expected
-      if (this.dc !== dc || !ACTIVE.includes(this.state.status)) return;
-      console.warn('[rtc] data channel error', e);
-      this.fail('Data channel error');
-    };
-    dc.onclose = () => {
-      if (this.dc === dc && ACTIVE.includes(this.state.status)) this.fail('Connection closed');
-    };
+  // ---- batch protocol ----
+  // sender -> receiver : batch {files} ... file-start {index}, <binary chunks>, file-end {index} ... batch-done
+  // receiver -> sender : accept | reject            either side: cancel
+  private onLinkOpen() {
+    if (this.state.direction !== 'send' || !this.link) return;
+    this.link.sendJson({ type: 'batch', files: this.state.files });
+    this.set({ status: 'awaiting-accept' });
   }
 
   private onMessage(data: string | ArrayBuffer) {
-    // Binary = a file chunk (receiver side)
+    // Binary = a chunk of the file that is currently arriving
     if (typeof data !== 'string') {
-      this.chunks.push(data);
-      this.received += data.byteLength;
-      this.updateProgress(this.received / (this.meta?.size || 1));
+      const asm = this.incoming;
+      if (!asm) return;
+      asm.push(data);
+      if (asm.received > asm.meta.size) return this.fail('A file was larger than announced');
+      this.updateProgress((this.doneBytes + asm.received) / (this.state.fileSize || 1));
       return;
     }
-
-    console.log('[rtc] message:', data.slice(0, 80));
 
     let m;
     try {
@@ -288,79 +242,103 @@ class TransferManager {
     } catch {
       return; // ignore malformed control messages
     }
+    console.log('[rtc] message:', m.type);
 
-    if (m.type === 'meta') {
-      // RECEIVER: the sender describes the incoming file; the UI will ask accept/decline
-      const size = Number(m.size);
-      if (!Number.isFinite(size) || size < 0) return this.fail('Invalid file info');
-      const name = String(m.name).replace(/[\\/:*?"<>|]/g, '_').slice(0, 255) || 'file';
-      this.meta = { name, size, mime: String(m.mime || '') };
-      this.chunks = [];
-      this.received = 0;
-      this.set({ status: 'awaiting-accept', fileName: name, fileSize: size });
-    } else if (m.type === 'accept') {
-      // SENDER: the receiver accepted, start streaming
-      void this.streamFile();
-    } else if (m.type === 'reject' || m.type === 'cancel') {
-      // Either side: the other device declined or cancelled
-      this.cleanup();
-      this.set({ status: 'rejected' });
-    } else if (m.type === 'done' && this.meta) {
-      // RECEIVER: all chunks arrived, build the file
-      const url = URL.createObjectURL(new Blob(this.chunks, { type: this.meta.mime }));
-      this.chunks = [];
-      this.set({ status: 'complete', progress: 1, downloadUrl: url });
+    switch (m.type) {
+      case 'batch': { // RECEIVER: the sender lists every file; the UI asks accept/decline
+        if (this.state.direction !== 'receive' || this.state.status !== 'connecting') return;
+        const metas = sanitizeMetas(m.files);
+        if (!metas) return this.fail('Invalid file list');
+        const total = metas.reduce((sum, f) => sum + f.size, 0);
+        this.set({ status: 'awaiting-accept', files: metas, fileIndex: 0, fileName: metas[0].name, fileSize: total });
+        return;
+      }
+
+      case 'accept': // SENDER: start streaming the whole batch
+        void this.streamAll();
+        return;
+
+      case 'reject':
+        this.rejectWith('declined');
+        return;
+
+      case 'cancel':
+        this.rejectWith('cancelled');
+        return;
+
+      case 'file-start': { // RECEIVER: the next file begins
+        if (this.state.direction !== 'receive' || this.state.status !== 'transferring') return;
+        const i = Number(m.index);
+        const meta = this.state.files[i];
+        if (!meta || i !== this.state.received.length) return this.fail('Files arrived out of order');
+        this.incoming = new FileAssembler(meta);
+        this.set({ fileIndex: i, fileName: meta.name });
+        return;
+      }
+
+      case 'file-end': { // RECEIVER: the current file is complete
+        const asm = this.incoming;
+        if (!asm) return;
+        const url = asm.finish();
+        if (!url) return this.fail('A file arrived incomplete');
+        this.incoming = null;
+        this.doneBytes += asm.meta.size;
+        this.set({ received: [...this.state.received, { name: asm.meta.name, size: asm.meta.size, url }] });
+        return;
+      }
+
+      case 'batch-done': // RECEIVER: every file has been sent
+        if (this.state.direction !== 'receive') return;
+        if (this.state.received.length !== this.state.files.length) return this.fail('Some files are missing');
+        this.set({ status: 'complete', progress: 1 });
+        return;
     }
   }
 
-  private async streamFile() {
-    const dc = this.dc;
-    const file = this.file;
-    if (!dc || !file) return;
-    this.set({ status: 'transferring', progress: 0 });
+  // SENDER: streams every file, in order, over the same channel
+  private async streamAll() {
+    const link = this.link;
+    const files = this.outgoing;
+    if (!link || this.state.direction !== 'send' || this.state.status !== 'awaiting-accept') return;
+
+    const total = this.state.fileSize || 1;
+    this.set({ status: 'transferring', progress: 0, fileIndex: 0 });
 
     try {
-      let offset = 0;
-      while (offset < file.size) {
-        if (dc.readyState !== 'open') throw new Error('closed');
-        if (dc.bufferedAmount > HIGH_WATER) { // backpressure
-          await new Promise<void>((r) => dc.addEventListener('bufferedamountlow', () => r(), { once: true }));
+      let sentBefore = 0;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (this.link !== link) return; // cancelled
+
+        this.set({ fileIndex: i, fileName: file.name });
+        link.sendJson({ type: 'file-start', index: i });
+
+        const ok = await streamFile(
+          link,
+          file,
+          (sent) => this.updateProgress((sentBefore + sent) / total),
+          () => this.link !== link,
+        );
+        if (!ok) {
+          if (this.link === link) this.fail('Transfer interrupted');
+          return;
         }
-        const buf = await file.slice(offset, offset + CHUNK).arrayBuffer();
-        dc.send(buf);
-        offset += buf.byteLength;
-        this.updateProgress(offset / file.size);
+
+        link.sendJson({ type: 'file-end', index: i });
+        sentBefore += file.size;
       }
-      dc.send(JSON.stringify({ type: 'done' }));
-      while (dc.bufferedAmount > 0) await new Promise((r) => setTimeout(r, 50)); // let it drain
+
+      link.sendJson({ type: 'batch-done' });
+      await link.waitForDrain(); // let the last bytes leave before declaring success
+      if (this.link !== link) return;
       this.set({ status: 'complete', progress: 1 });
     } catch {
-      if (this.dc !== dc) return; // cleaned up on purpose (cancel/decline), not a failure
-      this.fail('Transfer interrupted');
+      if (this.link === link) this.fail('Transfer interrupted');
     }
   }
 
   private updateProgress(p: number) {
     if (p >= 1 || p - this.state.progress >= 0.01) this.set({ progress: Math.min(p, 1) });
-  }
-
-  private fail(error: string) {
-    this.cleanup();
-    this.set({ status: 'failed', error });
-  }
-
-  private cleanup() {
-    this.clearConnectTimer();
-    const dc = this.dc;
-    const pc = this.pc;
-    this.dc = null; // null first so onclose handlers see it is intentional
-    this.pc = null;
-    dc?.close();
-    pc?.close();
-    this.pendingIce = [];
-    this.localIceQueue = [];
-    this.localIceReady = false;
-    this.chunks = [];
   }
 }
 
