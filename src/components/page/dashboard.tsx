@@ -47,7 +47,7 @@ export default function Dashboard() {
   return (
     <div
       className={`relative flex-1 flex flex-col gap-4 items-center bg-white/10 min-h-0 w-full
-      ${isDesktop ? "px-25 py-12" : isTablet ? "px-12 py-10" : "px-5 py-5"}`}
+      ${isDesktop ? "px-20 py-10" : isTablet ? "px-12 py-8" : "px-5 py-5"}`}
     >
       <div className="flex flex-col items-center gap-3 w-full shrink-0">
         <div className="border-2 border-white/60 rounded-full shadow-2xl">
@@ -55,12 +55,11 @@ export default function Dashboard() {
             className={`font-semibold bg-white/50 rounded-full 
               ${
                 isDesktop
-                  ? "text-4xl px-6 py-4"
+                  ? "text-3xl px-6 py-4"
                   : isTablet
-                    ? "text-2xl px-4 py-3"
+                    ? "text-xl px-4 py-3"
                     : isMobile
-                      ? "text-lg px-3 py-2"
-                      : "text-xl"
+                      && "text-lg px-3 py-2"
               }`}
           >
             Peer-to-Peer File Transfer
@@ -68,7 +67,7 @@ export default function Dashboard() {
         </div>
         <AppLabel />
         <button className="bg-blue-100 rounded-xl p-4 py-1 border border-black flex gap-2 items-center">
-          <p className="font-semibold">Check Connection Status</p>
+          <p className="font-semibold text-sm">Check Connection Status</p>
           {isCheckStatus ? (
             <svg
               onClick={() => setIsCheckStatus(false)}
@@ -105,7 +104,7 @@ export default function Dashboard() {
           myDeviceName={myDeviceName}
         />
 
-        <hr className="border border-black/50 w-full mt-2" />
+        <hr className={`border border-black/50 w-full ${isDesktop ? "mt-2" : isTablet ? "mt-1" : isMobile && "mt-0"}`} />
       </div>
       {!isSelectionPanel && !isTransferPanel && (
         <button
