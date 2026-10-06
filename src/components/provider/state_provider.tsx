@@ -36,6 +36,8 @@ interface TransferState {
   declineTransfer: () => void;
   clearTransfer: () => void;
   cancelRequest: () => void;
+
+  generateQROffer: (files: File[]) => Promise<string>,
 }
 
 type AppState = NavigationPanelState & SelectedFilesState & TransferState & DiscoveryStoreState;
@@ -78,6 +80,10 @@ export const useStateProvider = create<AppState>((set, get) => ({
   declineTransfer: () => transfer.decline(),
   clearTransfer: () => transfer.reset(),
   cancelRequest: () => transfer.cancelRequest(),
+  
+  generateQROffer: async (files: File[]) => {
+    return await transfer.generateQROffer(files);
+  },
 }));
 
 // Connect to the peer Discovery service

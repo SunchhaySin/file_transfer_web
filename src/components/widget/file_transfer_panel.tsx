@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { useStateProvider } from "../provider/state_provider";
 import useScreenSize from "../provider/windowWidth";
 import IconCategorizer from "../../utils/misc/iconHelper";
+import { compactSdp, payloadToQrDataUrl } from "./qr_code";
+import { encodePayload, newPairingId } from "../../utils/handlers/qr_code";
+
 
 export default function FileTransferPanel() {
   const { windowWidth, isMobile, isTablet, isDesktop } = useScreenSize();
@@ -18,6 +22,8 @@ export default function FileTransferPanel() {
     transferState: t,
     sendSelectedFiles,
     clearTransfer,
+
+    generateQROffer,
   } = useStateProvider(
     useShallow((state) => ({
       setIsSelectionPanel: state.setIsSelectionPanel,
@@ -32,6 +38,8 @@ export default function FileTransferPanel() {
       transferState: state.transferState,
       sendSelectedFiles: state.sendSelectedFiles,
       clearTransfer: state.clearTransfer,
+
+      generateQROffer: state.generateQROffer,
     })),
   );
 
@@ -57,15 +65,42 @@ export default function FileTransferPanel() {
       : "text-[11px]";
 
   const boxPadding = isDesktop 
-    ? "px-6 py-4"
+    ? "px-4 py-3"
     : isTablet
-      ? "px-4 py-3"
+      ? "px-3 py-3"
       : "px-2 py-2";
-  //  ${isDesktop ? "max-h-[calc(100lvh-29rem)]" : isTablet ? "max-h-[calc(100lvh-24rem)]" : isMobile && "max-h-[calc(100lvh-36rem)]"}
+
+  const [qrSrc, setQrSrc] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
+
+  const handleGenerateQr = async (filesToTransfer: File[]) => {
+    try {
+      const rawSdp = await generateQROffer(filesToTransfer);
+      // 1. Get complete SDP offer string containing all ICE candidates
+      const compressedSdp = compactSdp(rawSdp);
+      
+      // 2. Build payload without candidates
+      const payload = await encodePayload({
+        v: 1,
+        k: "offer",
+        id: newPairingId(),
+        name: "My Device",
+        sdp: compressedSdp,
+      });
+
+      // 3. Render QR code
+      const qrUrl = await payloadToQrDataUrl(payload, 840);
+      setQrSrc(qrUrl);
+      setShowQr(true);
+    } catch (err) {
+      setQrError("Failed to generate QR code");
+    }
+  };
+
   return (
     <div
       className={`flex-1 flex flex-col justify-between items-center bg-blue-200/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 
-            ${isDesktop ? "max-h-[calc(100dvh-19rem)]" : isTablet ? "max-h-[calc(100dvh-16rem)]" : "max-h-[calc(100dvh-14rem)]"}
             ${
               isDesktop && windowWidth >= 1400
                 ? "px-8 py-4 w-250"
@@ -115,9 +150,9 @@ export default function FileTransferPanel() {
             ))}
           </ul>
         )}
-        <div className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto min-h-0" : "shrink-0"}`}>
+        <div className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto " : "shrink-0"}`}>
           <div
-            className={`bg-blue-100 flex flex-col gap-3 items-center justify-start min-h-0 w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1"}`}
+            className={`bg-blue-100 flex flex-col gap-3 items-center justify-start w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1 "}`}
           >
             <div
               className={`flex flex-col items-center w-full ${windowWidth >= 1280 ? "gap-3" : "gap-2"}`}
@@ -127,11 +162,11 @@ export default function FileTransferPanel() {
                   onClick={onShare}
                   className={`font-semibold bg-green-400 hover:bg-green-500 px-2 py-1 rounded-xl border border-black/50 ${windowWidth >= 1280 && "flex-1"}`}
                 >
-                  {busy ? "Sharing..." : "Share Directly"}
+                  {(busy && t.status !== "qr-peer") ? "Sharing..." : "Share Directly"}
                 </button>
                 {windowWidth >= 1280 && (
                   <button
-                    // onClick={onShare}
+                    onClick={() => handleGenerateQr(selectedFiles)}
                     className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50 flex-1"
                   >
                     Generate QR-Code
@@ -189,7 +224,7 @@ export default function FileTransferPanel() {
                           {p.name[0]?.toUpperCase()}
                         </button>
                         <span
-                          className={`max-w-24 truncate ${selected ? "font-semibold text-blue-700" : ""}`}
+                          className={`max-w-18 text-xs truncate ${selected ? "font-semibold text-blue-700" : ""}`}
                         >
                           {p.name}
                         </span>
@@ -253,7 +288,9 @@ export default function FileTransferPanel() {
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <button className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50">
+                <button 
+                  onClick={() => handleGenerateQr(selectedFiles)}
+                  className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50">
                   Generate QR-code
                 </button>
                 <p className={`${hintSize} text-center text-gray-500/80`}>
@@ -262,6 +299,9 @@ export default function FileTransferPanel() {
               </div>
             )}
           </div>
+          {showQr && qrSrc && (
+            <img src={qrSrc}/> 
+          )}
         </div>
       </div>
       <div className="flex items-center gap-4 w-full">

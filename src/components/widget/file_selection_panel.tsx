@@ -67,7 +67,6 @@ export default function FileSelectionPanel() {
   return (
     <div
       className={`flex-1 flex flex-col justify-between items-center bg-white/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0
-         ${isDesktop ? "max-h-[calc(100lvh-19rem)]" : isTablet && windowWidth >= 1000 ? "max-h-[calc(100lvh-16rem)]" : isMobile && "max-h-[calc(100lvh-14rem)]"}
          ${
               isDesktop
                 ? "px-10 py-6 w-250"

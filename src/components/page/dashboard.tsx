@@ -46,7 +46,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className={`relative flex-1 flex flex-col gap-4 items-center bg-white/10 min-h-0 w-full
+      className={`relative flex-1 flex flex-col gap-4 items-center bg-white/10 min-h-0 w-full max-h-lvh
       ${isDesktop ? "px-20 py-10" : isTablet ? "px-12 py-8" : "px-5 py-5"}`}
     >
       <div className="flex flex-col items-center gap-3 w-full shrink-0">

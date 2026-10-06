@@ -36,7 +36,7 @@ export default function TransferDialogReceiver() {
 
   const { isTablet, isDesktop } = useScreenSize();
 
-  if (t.direction !== "receive") return null;
+  if (t.direction !== "receive" || t.peerId === "qr-peer") return null;
 
   const peerName = peers.find((p) => p.id === t.peerId)?.name ?? "Another device";
   const fileCount = t.files.length;
