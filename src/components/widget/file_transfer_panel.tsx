@@ -3,9 +3,15 @@ import { useShallow } from "zustand/shallow";
 import { useStateProvider } from "../provider/state_provider";
 import useScreenSize from "../provider/windowWidth";
 import IconCategorizer from "../../utils/misc/iconHelper";
-import { compactSdp, payloadToQrDataUrl } from "./qr_code";
-import { encodePayload, newPairingId } from "../../utils/handlers/qr_code";
-
+import {
+  encodePayload,
+  newPairingId,
+  compactSdp,
+  payloadToQrDataUrl,
+} from "../../utils/handlers/qr_code";
+import { Modal } from "../dialog/dialog_components";
+import QrSenderScanner from "../dialog/qrSenderScanner";
+import QrReceiverScanner from "../dialog/qrReceiverScanner";
 
 export default function FileTransferPanel() {
   const { windowWidth, isMobile, isTablet, isDesktop } = useScreenSize();
@@ -64,7 +70,7 @@ export default function FileTransferPanel() {
       ? "text-[12px]"
       : "text-[11px]";
 
-  const boxPadding = isDesktop 
+  const boxPadding = isDesktop
     ? "px-4 py-3"
     : isTablet
       ? "px-3 py-3"
@@ -73,13 +79,19 @@ export default function FileTransferPanel() {
   const [qrSrc, setQrSrc] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const [expandModal, setExpandModal] = useState(false);
+
+  // Scanner state management
+  const [showOfferScanner, setShowOfferScanner] = useState(false); // Receiver role: Scan offer
+  const [showAnswerScanner, setShowAnswerScanner] = useState(false); // Sender role: Scan answer
+  const [pairingId, setPairingId] = useState<string>("");
 
   const handleGenerateQr = async (filesToTransfer: File[]) => {
     try {
       const rawSdp = await generateQROffer(filesToTransfer);
       // 1. Get complete SDP offer string containing all ICE candidates
       const compressedSdp = compactSdp(rawSdp);
-      
+
       // 2. Build payload without candidates
       const payload = await encodePayload({
         v: 1,
@@ -90,7 +102,7 @@ export default function FileTransferPanel() {
       });
 
       // 3. Render QR code
-      const qrUrl = await payloadToQrDataUrl(payload, 840);
+      const qrUrl = await payloadToQrDataUrl(payload);
       setQrSrc(qrUrl);
       setShowQr(true);
     } catch (err) {
@@ -117,14 +129,12 @@ export default function FileTransferPanel() {
                           : "px-3 py-3 w-80"
             }`}
     >
-      <p
-        className={`${isDesktop ? "text-2xl" : isTablet ? "text-xl" : "lg"} font-semibold`}
+       <p
+        className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "p-2 rounded-2xl text-2xl" : isTablet ? "p-2 rounded-xl v" : "p-1 rounded-lg text-lg"}`}
       >
         Begin the file tranfer
       </p>
-      {windowWidth >= 800 && (
-        <hr className="border border-black/20 w-full" />
-      )}
+      {windowWidth >= 800 && <hr className="border border-black/20 w-full" />}
       <div
         className={`w-full flex-1 min-h-0 ${isDesktop ? "px-4 py-2" : isTablet ? "px-3 py-2" : "px-2 py-1"}
           ${windowWidth >= 1000 ? "grid grid-cols-2 gap-3" : "flex flex-col gap-2 overflow-y-auto"}`}
@@ -150,7 +160,9 @@ export default function FileTransferPanel() {
             ))}
           </ul>
         )}
-        <div className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto " : "shrink-0"}`}>
+        <div
+          className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto " : "shrink-0"}`}
+        >
           <div
             className={`bg-blue-100 flex flex-col gap-3 items-center justify-start w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1 "}`}
           >
@@ -162,8 +174,9 @@ export default function FileTransferPanel() {
                   onClick={onShare}
                   className={`font-semibold bg-green-400 hover:bg-green-500 px-2 py-1 rounded-xl border border-black/50 ${windowWidth >= 1280 && "flex-1"}`}
                 >
-                  {(busy && t.status !== "qr-peer") ? "Sharing..." : "Share Directly"}
+                  {busy ? "Sharing..." : "Share Directly"}
                 </button>
+
                 {windowWidth >= 1280 && (
                   <button
                     onClick={() => handleGenerateQr(selectedFiles)}
@@ -199,7 +212,9 @@ export default function FileTransferPanel() {
                 </p>
               </div>
             </div>
-            <div className="flex-1 w-full flex items-center justify-center bg-blue-50 rounded-2xl">
+            <div
+              className={`flex-1 w-full flex items-center justify-center ${peers.length > 0 && "bg-blue-50"}  rounded-2xl`}
+            >
               {peers.length > 0 ? (
                 <ul className="flex w-full gap-3 overflow-x-auto overflow-y-hidden snap-x snap-proximity">
                   {peers.map((p) => {
@@ -233,7 +248,7 @@ export default function FileTransferPanel() {
                   })}
                 </ul>
               ) : (
-                <div className="flex gap-2 items-center justify-center border border-gray-400 rounded-xl px-3 py-1 ">
+                <div className="flex gap-2 items-center justify-center border border-gray-400 bg-blue-50 rounded-xl px-3 py-1 ">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     height="24px"
@@ -288,19 +303,219 @@ export default function FileTransferPanel() {
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <button 
+                <button
                   onClick={() => handleGenerateQr(selectedFiles)}
-                  className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50">
+                  className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50"
+                >
                   Generate QR-code
                 </button>
                 <p className={`${hintSize} text-center text-gray-500/80`}>
                   Share by using this generated QR-code
                 </p>
+                {(isTablet || isMobile) && (
+                  <>
+                    {qrError ? (
+                      <p className="text-xs text-red-500 text-center font-medium">
+                        {qrError}
+                      </p>
+                    ) : showQr && qrSrc ? (
+                      <div className="flex flex-col gap-2 w-full items-center rounded-2xl mt-2">
+                        <div className="bg-white p-2 rounded-xl border border-gray-100">
+                          <img
+                            src={qrSrc}
+                            alt="Generated Transfer QR"
+                            className="w-30 h-30 object-contain"
+                          />
+                        </div>
+
+                        <div className="flex gap-3 items-center rounded-xl px-3 h-full justify-center">
+                          {/* Expand QR */}
+                          <button
+                            onClick={() => setExpandModal(true)}
+                            aria-label="Expand QR"
+                            className="text-xs bg-blue-200 hover:bg-blue-400 font-medium px-3 py-1 rounded-lg transition-colors"
+                          >
+                            {isTablet ? (
+                              <span className="flex items-center gap-2">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  height="20px"
+                                  viewBox="0 -960 960 960"
+                                  width="20px"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M120-120v-320h80v184l504-504H520v-80h320v320h-80v-184L256-200h184v80H120Z" />
+                                </svg>
+                                <span>Expand QR</span>
+                              </span>
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                height="20px"
+                                viewBox="0 -960 960 960"
+                                width="20px"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M120-120v-320h80v184l504-504H520v-80h320v320h-80v-184L256-200h184v80H120Z" />
+                              </svg>
+                            )}
+                          </button>
+
+                          {/* Scan Answer QR */}
+                          <button
+                            onClick={() => setShowAnswerScanner(true)}
+                            aria-label="Scan Answer QR"
+                            className="text-xs bg-green-400 hover:bg-green-500 font-semibold p-2 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                          >
+                            {isTablet ? (
+                              <span className="flex items-center gap-2">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  height="20px"
+                                  viewBox="0 -960 960 960"
+                                  width="20px"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M80-680v-200h200v80H160v120H80Zm0 600v-200h80v120h120v80H80Zm600 0v-80h120v-120h80v200H680Zm120-600v-120H680v-80h200v200h-80ZM700-260h60v60h-60v-60Zm0-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm120-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm240-320v240H520v-240h240ZM440-440v240H200v-240h240Zm0-320v240H200v-240h240Zm-60 500v-120H260v120h120Zm0-320v-120H260v120h120Zm320 0v-120H580v120h120Z" />
+                                </svg>
+                                <span>Scan Answer QR</span>
+                              </span>
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                height="20px"
+                                viewBox="0 -960 960 960"
+                                width="20px"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M80-680v-200h200v80H160v120H80Zm0 600v-200h80v120h120v80H80Zm600 0v-80h120v-120h80v200H680Zm120-600v-120H680v-80h200v200h-80ZM700-260h60v60h-60v-60Zm0-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm120-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm240-320v240H520v-240h240ZM440-440v240H200v-240h240Zm0-320v240H200v-240h240Zm-60 500v-120H260v120h120Zm0-320v-120H260v120h120Zm320 0v-120H580v120h120Z" />
+                              </svg>
+                            )}
+                          </button>
+
+                          {/* Hide QR */}
+                          <button
+                            onClick={() => setShowQr(false)}
+                            className="text-xs bg-red-400/80 hover:bg-red-400 font-semibold p-2 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                          >
+                            {isTablet ? (
+                              <span className="flex items-center gap-2">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  height="20px"
+                                  viewBox="0 -960 960 960"
+                                  width="20px"
+                                  fill="currentColor"
+                                >
+                                  <path d="m177-120-57-57 184-183H200v-80h240v240h-80v-104L177-120Zm343-400v-240h80v104l183-184 57 57-184 183h104v80H520Z" />
+                                </svg>
+                                <span>Collapse QR</span>
+                              </span>
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                height="20px"
+                                viewBox="0 -960 960 960"
+                                width="20px"
+                                fill="currentColor"
+                              >
+                                <path d="m177-120-57-57 184-183H200v-80h240v240h-80v-104L177-120Zm343-400v-240h80v104l183-184 57 57-184 183h104v80H520Z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             )}
           </div>
-          {showQr && qrSrc && (
-            <img src={qrSrc}/> 
+          {isDesktop && (
+            <>
+              {qrError ? (
+                <p className="text-xs text-red-500 text-center font-medium">
+                  {qrError}
+                </p>
+              ) : showQr && qrSrc ? (
+                <div className="flex gap-2 justify-around items-center bg-white p-3 rounded-2xl shadow-md border border-gray-200 mt-2">
+                  <div className="bg-white p-2 rounded-xl border border-gray-100">
+                    <img
+                      src={qrSrc}
+                      alt="Generated Transfer QR"
+                      className="w-30 h-30 object-contain"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-3 items-center bg-blue-50 border border-black/20 rounded-xl px-3 h-full justify-center">
+                    {/* Expand QR */}
+                    <button
+                      onClick={() => setExpandModal(true)}
+                      aria-label="Expand QR"
+                      className="text-xs bg-blue-200 hover:bg-blue-400 font-medium px-3 py-1 rounded-lg transition-colors"
+                    >
+                        <span className="flex items-center gap-2">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            height="20px"
+                            viewBox="0 -960 960 960"
+                            width="20px"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M120-120v-320h80v184l504-504H520v-80h320v320h-80v-184L256-200h184v80H120Z" />
+                          </svg>
+                          <span>Expand QR</span>
+                        </span>
+                    </button>
+
+                    {/* Scan Answer QR */}
+                    <button
+                      onClick={() => setShowAnswerScanner(true)}
+                      aria-label="Scan Answer QR"
+                      className="text-xs bg-green-400 hover:bg-green-500 font-semibold p-2 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                    >
+                        <span className="flex items-center gap-2">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            height="20px"
+                            viewBox="0 -960 960 960"
+                            width="20px"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M80-680v-200h200v80H160v120H80Zm0 600v-200h80v120h120v80H80Zm600 0v-80h120v-120h80v200H680Zm120-600v-120H680v-80h200v200h-80ZM700-260h60v60h-60v-60Zm0-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm120-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm240-320v240H520v-240h240ZM440-440v240H200v-240h240Zm0-320v240H200v-240h240Zm-60 500v-120H260v120h120Zm0-320v-120H260v120h120Zm320 0v-120H580v120h120Z" />
+                          </svg>
+                          <span>Scan Answer QR</span>
+                        </span>
+                    </button>
+
+                    {/* Hide QR */}
+                    <button
+                      onClick={() => setShowQr(false)}
+                      className="text-xs bg-red-400/80 hover:bg-red-400 font-semibold p-2 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                    >
+                        <span className="flex items-center gap-2">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            height="20px"
+                            viewBox="0 -960 960 960"
+                            width="20px"
+                            fill="currentColor"
+                          >
+                            <path d="m177-120-57-57 184-183H200v-80h240v240h-80v-104L177-120Zm343-400v-240h80v104l183-184 57 57-184 183h104v80H520Z" />
+                          </svg>
+                          <span>Collapse QR</span>
+                        </span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </div>
@@ -328,6 +543,47 @@ export default function FileTransferPanel() {
           Cancel
         </button>
       </div>
+      {showOfferScanner && (
+        <QrReceiverScanner onClose={() => setShowOfferScanner(false)} />
+      )}
+
+      {/* MODAL 2: Sender scanning Answer QR */}
+      {showAnswerScanner && (
+        <Modal title="Scan Receiver's Answer">
+          <div className="p-2 max-w-sm mx-auto">
+            <QrSenderScanner
+              expectedPairingId={pairingId}
+              onSuccess={() => setShowAnswerScanner(false)}
+              onCancel={() => setShowAnswerScanner(false)}
+            />
+          </div>
+        </Modal>
+      )}
+      {expandModal && qrSrc && (
+        <Modal title="Scan Offer QR Code">
+          <div className="flex flex-col items-center justify-center p-2 gap-4 text-center max-w-sm mx-auto">
+            <p className="text-xs sm:text-sm text-gray-600 font-medium">
+              Point the receiving device's camera at this QR code to initiate
+              the transfer.
+            </p>
+
+            <div className="bg-white p-3 rounded-2xl shadow-md border border-gray-200">
+              <img
+                src={qrSrc}
+                alt="Expanded Offer QR Code"
+                className="w-72 h-72 sm:w-80 sm:h-80 object-contain"
+              />
+            </div>
+
+            <button
+              onClick={() => setExpandModal(false)}
+              className="px-5 py-2 bg-gray-200 hover:bg-gray-300 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

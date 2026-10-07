@@ -1,9 +1,5 @@
-// qr_payload.ts - turns one SDP into a short text code (for a QR) and back.
-//
-// Wire format:  "P2P1." + base64url( deflate( JSON ) )
-//          or:  "P2P0." + base64url( JSON )          (browser without CompressionStream)
-//
-// The prefix lets a scanner ignore QR codes that belong to something else.
+// qr_payload.ts - Handles SDP compression, payload serialization, and QR DataURL generation.
+import QRCode from "qrcode";
 
 export type QrKind = 'offer' | 'answer';
 
@@ -19,13 +15,17 @@ const ZIP = 'P2P1.';
 const RAW = 'P2P0.';
 const MAX_SDP_CHARS = 8000;
 
-// 8 random bytes as hex. (crypto.randomUUID needs a secure context, getRandomValues does not.)
+// A version-40 QR holds 2953 bytes at level L.
+// Keep it around 1800-2300 characters so camera scanning remains fast and reliable.
+const MAX_QR_CHARS = 2300;
+
+// 8 random bytes as hex.
 export function newPairingId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ---- base64url ----
+// ---- Base64Url Helpers ----
 function toBase64Url(bytes: Uint8Array): string {
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
@@ -38,22 +38,21 @@ function fromBase64Url(text: string): Uint8Array {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
-// ---- deflate / inflate through the browser's built-in streams ----
+// ---- Deflate / Inflate Browser Streams ----
 async function run(data: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
   const writer = stream.writable.getWriter();
-  writer.write(new Uint8Array(data)).catch(() => {}); // a bad input is reported by the read below
+  writer.write(new Uint8Array(data)).catch(() => {});
   writer.close().catch(() => {});
   return new Uint8Array(await new Response(stream.readable).arrayBuffer());
 }
 
-// ---- public API ----
+// ---- Public Payload Serialization API ----
 export async function encodePayload(payload: QrPayload): Promise<string> {
   const json = new TextEncoder().encode(JSON.stringify(payload));
   if (typeof CompressionStream === 'undefined') return RAW + toBase64Url(json);
   return ZIP + toBase64Url(await run(json, new CompressionStream('deflate-raw')));
 }
 
-// Throws an Error with a message that is fine to show to the user
 export async function decodePayload(text: string): Promise<QrPayload> {
   const t = text.trim();
   let json: Uint8Array;
@@ -71,7 +70,7 @@ export async function decodePayload(text: string): Promise<QrPayload> {
     if (e instanceof Error && e.message === 'unsupported') {
       throw new Error('This browser cannot read compressed codes. Please use a newer browser.');
     }
-    throw new Error('This is not a transfer code.');
+    throw new Error('This is not a valid transfer code.');
   }
 
   let raw: unknown;
@@ -83,7 +82,6 @@ export async function decodePayload(text: string): Promise<QrPayload> {
   return validate(raw);
 }
 
-// The code comes from another device, so check everything before it reaches WebRTC
 function validate(raw: unknown): QrPayload {
   const x = raw as Partial<QrPayload> | null;
   if (!x || x.v !== 1) throw new Error('This code was made by a different version of the app.');
@@ -99,4 +97,32 @@ function validate(raw: unknown): QrPayload {
     name: String(x.name ?? '').slice(0, 50) || 'Another device',
     sdp: x.sdp,
   };
+}
+
+// ---- SDP Compression & Rendering ----
+export function compactSdp(sdp: string): string {
+  return sdp
+    .split("\r\n")
+    .filter((line) => {
+      if (line.startsWith("b=")) return false;
+      if (line.startsWith("a=rtcp-fb:")) return false;
+      if (line.startsWith("a=fmtp:")) return false;
+      if (line.startsWith("a=extmap:")) return false;
+      if (line.startsWith("a=msid:")) return false;
+      if (line.startsWith("a=ssrc:")) return false;
+      return true;
+    })
+    .join("\r\n");
+}
+
+export async function payloadToQrDataUrl(text: string, size = 600): Promise<string> {
+  if (text.length > MAX_QR_CHARS) {
+    throw new Error(`The connection code is too large for one QR code (${text.length} characters).`);
+  }
+  return QRCode.toDataURL(text, {
+    errorCorrectionLevel: "L",
+    margin: 3,
+    width: size,
+    color: { dark: "#000000", light: "#ffffff" },
+  });
 }

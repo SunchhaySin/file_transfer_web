@@ -18,7 +18,7 @@ export type Status =
   | "complete"
   | "failed"
   | "rejected"
-  | "qr-peer"
+  // | "qr-peer"
   | "awaiting-qr-answer"
   | "qr-answer-ready";
 
@@ -210,14 +210,6 @@ class TransferManager {
   private async onOffer(from: string, sdp: RTCSessionDescriptionInit) {
     console.log("[rtc] offer received from", from);
 
-    // 1. If we are generating/waiting on a QR code scan, do NOT treat incoming offers as inbound requests!
-    if (this.state.peerId === "qr-peer") {
-      console.log(
-        "[rtc] Ignored incoming offer because we are in QR sender mode.",
-      );
-      return;
-    }
-
     const isRetry =
       this.state.status === "connecting" &&
       this.state.direction === "receive" &&
@@ -398,9 +390,23 @@ class TransferManager {
   // ==========================================
 
   private onLinkOpen() {
-    if (this.state.direction !== "send" || !this.link) return;
-    this.link.sendJson({ type: "batch", files: this.state.files });
-    this.set({ status: "awaiting-accept" });
+    if (!this.link) return;
+
+    // SENDER SIDE (QR Mode or Direct Mode)
+    if (this.state.direction === "send") {
+      console.log("[rtc] Sender DataChannel opened. Sending batch metadata...");
+      this.link.sendJson({ type: "batch", files: this.state.files });
+      
+      // If we are in QR mode, transition from awaiting answer to awaiting accept
+      this.set({ status: "awaiting-accept" });
+    }
+
+    // RECEIVER SIDE (QR Mode)
+    if (this.state.direction === "receive" && this.state.status === "qr-answer-ready") {
+      console.log("[rtc] Receiver DataChannel opened from QR Answer!");
+      // Prepare state to receive the incoming file batch header
+      this.set({ status: "connecting" });
+    }
   }
 
   private onMessage(data: string | ArrayBuffer) {
@@ -427,7 +433,7 @@ class TransferManager {
       case "batch": {
         if (
           this.state.direction !== "receive" ||
-          this.state.status !== "connecting"
+          this.state.status !== "connecting" && this.state.status !== "qr-answer-ready"
         )
           return;
         const metas = sanitizeMetas(m.files);

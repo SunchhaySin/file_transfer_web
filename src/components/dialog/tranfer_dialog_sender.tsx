@@ -14,7 +14,7 @@ export default function TransferDialogReceiveSender() {
     })),
   );
 
-  if (t.direction !== "send" || t.peerId === "qr-peer") return null;
+  if (t.direction !== "send") return null;
 
   const peerName = peers.find((p) => p.id === t.peerId)?.name ?? "the other device";
 

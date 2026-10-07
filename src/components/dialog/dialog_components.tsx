@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { TransferState } from "../../utils/handlers/transfer";
-import type { ReceivedFile } from "../../utils/handlers/transfer";
+import type { TransferState } from "../../utils/handlers/transferManager";
+import type { ReceivedFile } from "../../utils/handlers/transferManager";
 
 export const formatSize = (n: number) =>
   n < 1024 ? `${n} B`

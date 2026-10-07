@@ -3,7 +3,7 @@ import { useStateProvider } from "../provider/state_provider";
 import useScreenSize from "../provider/windowWidth";
 import { Modal, Notice } from "./dialog_components";
 import { FileInfoList, FileInfoDownloadList } from "./dialog_components";
-import type { ReceivedFile } from "../../utils/handlers/transfer";
+import type { ReceivedFile } from "../../utils/handlers/transferManager";
 
 export function downloadReceivedFile(file: ReceivedFile) {
   const a = document.createElement("a");
@@ -36,7 +36,7 @@ export default function TransferDialogReceiver() {
 
   const { isTablet, isDesktop } = useScreenSize();
 
-  if (t.direction !== "receive" || t.peerId === "qr-peer") return null;
+  if (t.direction !== "receive") return null;
 
   const peerName = peers.find((p) => p.id === t.peerId)?.name ?? "Another device";
   const fileCount = t.files.length;

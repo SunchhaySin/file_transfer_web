@@ -13,6 +13,11 @@ class PeerDiscovery {
   private state: DiscoveryState = { connected: false, myId: null, peers: [] };
   private listeners = new Set<() => void>();
 
+  private set(patch: Partial<DiscoveryState>) {
+    this.state = { ...this.state, ...patch };
+    this.listeners.forEach((fn) => fn());
+  }
+  
   constructor() {
     // Subscribed at import time, so no events are missed once start() is called
     signaling.on('open', () => this.set({ connected: true }));
@@ -43,11 +48,6 @@ class PeerDiscovery {
   };
   
   getSnapshot = () => this.state;
-
-  private set(patch: Partial<DiscoveryState>) {
-    this.state = { ...this.state, ...patch };
-    this.listeners.forEach((fn) => fn());
-  }
 }
 
 export const peerDiscovery = new PeerDiscovery();

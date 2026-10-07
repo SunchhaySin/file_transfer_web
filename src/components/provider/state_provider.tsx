@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { peerDiscovery } from "../../utils/handlers/peer_discovery";
 import type { Peer } from '../../utils/config/client'
-import { transfer } from "../../utils/handlers/transfer";
-import type { TransferState as TransferSnapshot} from "../../utils/handlers/transfer";
+import { transfer } from "../../utils/handlers/transferManager";
+import type { TransferState as TransferSnapshot} from "../../utils/handlers/transferManager";
 
 
 interface NavigationPanelState {
