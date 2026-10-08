@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { peerDiscovery } from "../../utils/handlers/peer_discovery";
 import type { Peer } from '../../utils/config/client'
+import { transfer } from "../../utils/handlers/transfer";
+import type { TransferState as TransferSnapshot} from "../../utils/handlers/transfer";
+
 
 interface NavigationPanelState {
   isSelectionPanel: boolean;
@@ -25,12 +28,19 @@ interface DiscoveryStoreState {
 }
 
 interface TransferState {
-
+  selectedPeer: Peer | null;
+  setSelectedPeer: (peer: Peer | null) => void;
+  transferState: TransferSnapshot; // mirrored from transfer.ts (read-only for components)
+  sendSelectedFiles: () => void;
+  acceptTransfer: () => void;
+  declineTransfer: () => void;
+  clearTransfer: () => void;
+  cancelRequest: () => void;
 }
 
 type AppState = NavigationPanelState & SelectedFilesState & TransferState & DiscoveryStoreState;
 
-export const useStateProvider = create<AppState>((set) => ({
+export const useStateProvider = create<AppState>((set, get) => ({
   // Navigation Panel State
   isSelectionPanel: false,
   isTransferPanel: false,
@@ -41,7 +51,7 @@ export const useStateProvider = create<AppState>((set) => ({
   selectedFiles: [],
   addSelectedFiles: (files) => set((state) => ({ selectedFiles: [...state.selectedFiles, ...files] })),
   removeSelectedFile: (file) => set((state) => ({
-    selectedFiles: state.selectedFiles.filter((f) => f.name !== file.name),
+    selectedFiles: state.selectedFiles.filter((f) => f !== file),
   })),
   resetFilesList: () => set(() => ({selectedFiles: []})),
 
@@ -54,15 +64,45 @@ export const useStateProvider = create<AppState>((set) => ({
     set({ myDeviceName: trimmed });
   },
   peers: [],
+
+  selectedPeer: null,
+  setSelectedPeer: (peer) => set({ selectedPeer: peer }),
+  transferState: transfer.getSnapshot(),
+
+  sendSelectedFiles: () => {
+    const { selectedFiles, selectedPeer } = get();
+    if (!selectedPeer || selectedFiles.length === 0) return;
+    void transfer.send(selectedPeer.id, selectedFiles);
+  },
+  acceptTransfer: () => transfer.accept(),
+  declineTransfer: () => transfer.decline(),
+  clearTransfer: () => transfer.reset(),
+  cancelRequest: () => transfer.cancelRequest(),
 }));
 
+// Connect to the peer Discovery service
 const syncDiscovery = () => {
   const { connected, myId, peers } = peerDiscovery.getSnapshot();
-  useStateProvider.setState({ connected, myId, peers });
+  const current = useStateProvider.getState().selectedPeer;
+  const selectedPeer = current ? (peers.find((p) => p.id === current.id) ?? null) : null;
+  useStateProvider.setState({ connected, myId, peers, selectedPeer });
 };
 
-const unsubscribe = peerDiscovery.subscribe(syncDiscovery);
+// Connect to the file handler service (send && receive)
+const syncTransfer = () => {
+  useStateProvider.setState({ transferState: transfer.getSnapshot() });
+};
+
+const unsubDiscovery = peerDiscovery.subscribe(syncDiscovery);
+const unsubTransfer = transfer.subscribe(syncTransfer);
+
 syncDiscovery();
+syncTransfer();
 
 // Avoid duplicate subscriptions on Vite hot reload
-if (import.meta.hot) import.meta.hot.dispose(unsubscribe);
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    unsubDiscovery();
+    unsubTransfer();
+  });
+}
