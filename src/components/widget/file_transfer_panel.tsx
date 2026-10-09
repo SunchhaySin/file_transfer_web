@@ -112,22 +112,9 @@ export default function FileTransferPanel() {
 
   return (
     <div
-      className={`flex-1 flex flex-col justify-between items-center bg-blue-200/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 
-            ${
-              isDesktop && windowWidth >= 1400
-                ? "px-8 py-4 w-250"
-                : isDesktop && windowWidth < 1400
-                  ? "px-6 py-4 w-250"
-                  : isTablet && windowWidth >= 1100
-                    ? "px-6 py-4 w-225"
-                    : windowWidth >= 1000
-                      ? "px-5 py-3 w-200"
-                      : windowWidth >= 800
-                        ? "px-4 py-3 w-175"
-                        : windowWidth >= 550
-                          ? "px-3 py-3 w-120"
-                          : "px-3 py-3 w-80"
-            }`}
+      className={`flex-1 flex flex-col justify-between items-center bg-blue-200/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 w-full
+            ${isDesktop ? "px-12 py-6" : isTablet && windowWidth >= 1100 ? "px-8 py-4" : isTablet && windowWidth < 1100 ? "px-6 py-3" : isMobile ? "p-3 mb-6" :""}
+          `}
     >
        <p
         className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "p-2 rounded-2xl text-2xl" : isTablet ? "p-2 rounded-xl v" : "p-1 rounded-lg text-lg"}`}
@@ -139,32 +126,12 @@ export default function FileTransferPanel() {
         className={`w-full flex-1 min-h-0 ${isDesktop ? "px-4 py-2" : isTablet ? "px-3 py-2" : "px-2 py-1"}
           ${windowWidth >= 1000 ? "grid grid-cols-2 gap-3" : "flex flex-col gap-2 overflow-y-auto"}`}
       >
-        {selectedFiles.length > 0 && (
-          <ul
-            className={`w-full bg-blue-100/80 border border-blue-300 shadow-[0px_0px_2px_0.25px_blue] flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto 
-                ${windowWidth >= 1000 ? "h-full" : "flex-1 min-h-44"}`}
-          >
-            {selectedFiles.map((file, index) => (
-              <li
-                key={index}
-                className="text-gray-700 w-full bg-white/60 rounded-lg px-3 py-1"
-              >
-                <div className="flex-1 flex gap-5 items-center min-w-0">
-                  <span className="shrink-0">{IconCategorizer(file.name)}</span>
-                  <div className="flex flex-col items-start min-w-0">
-                    <p className="font-semibold truncate w-full">{file.name}</p>
-                    <p className="text-sm">{`${(file.size / (1024 * 1024)).toFixed(2)} MB`}</p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      
         <div
           className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto " : "shrink-0"}`}
         >
           <div
-            className={`bg-blue-100 flex flex-col gap-3 items-center justify-start w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1 "}`}
+            className={`bg-blue-100 flex flex-col items-center justify-start w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1 "}`}
           >
             <div
               className={`flex flex-col items-center w-full ${windowWidth >= 1280 ? "gap-3" : "gap-2"}`}
@@ -248,17 +215,19 @@ export default function FileTransferPanel() {
                   })}
                 </ul>
               ) : (
-                <div className="flex gap-2 items-center justify-center border border-gray-400 bg-blue-50 rounded-xl px-3 py-1 ">
+                <div className={`flex gap-2 items-center justify-center border border-gray-400 bg-blue-50 rounded-xl px-3 py-1 w-full h-full
+                    ${connected ? "text-green-600" : "text-red-600"} 
+                    ${isDesktop || isTablet ? "flex-col" : "flex-row"}`}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    height="24px"
+                    height={isDesktop ? "38px" : isTablet ? "38px" : isMobile ? "24px" : undefined}
                     viewBox="0 -960 960 960"
-                    width="24px"
+                    width={isDesktop ? "38px" : isTablet ? "38px" : isMobile ? "24px" : undefined}
                     fill="currentColor"
                   >
                     <path d="M720-354ZM487-587ZM354-720l-80-80h486q33 0 56.5 23.5T840-720H354Zm366 260q13 0 21.5-9t8.5-21q0-13-8.5-21.5T720-520q-12 0-21 8.5t-9 21.5q0 12 9 21t21 9Zm156 262-76-76v-286H640v126l-80-80v-66q0-25 17.5-42.5T620-640h200q25 0 42.5 17.5T880-580v360q0 6-1 11.5t-3 10.5ZM820-28 688-160h-68q-25 0-42.5-17.5T560-220v-68L200-648v288h300v80H200q-33 0-56.5-23.5T120-360v-368l-92-92 56-56L876-84l-56 56ZM344-504ZM80-160v-80h420v80H80Z" />
                   </svg>
-                  <span className="">No devices found</span>
+                  <span className="text-black">No devices found</span>
                 </div>
               )}
             </div>
@@ -518,6 +487,27 @@ export default function FileTransferPanel() {
             </>
           )}
         </div>
+        {selectedFiles.length > 0 && (
+          <ul
+            className={`w-full bg-blue-100/80 border border-blue-300 shadow-[0px_0px_2px_0.25px_blue] flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto 
+                ${windowWidth >= 1000 ? "h-full" : "flex-1 min-h-44"}`}
+          >
+            {selectedFiles.map((file, index) => (
+              <li
+                key={index}
+                className="text-gray-700 w-full bg-white/60 rounded-lg px-3 py-1"
+              >
+                <div className="flex-1 flex gap-5 items-center min-w-0">
+                  <span className="shrink-0">{IconCategorizer(file.name)}</span>
+                  <div className="flex flex-col items-start min-w-0">
+                    <p className="font-semibold truncate w-full">{file.name}</p>
+                    <p className="text-sm">{`${(file.size / (1024 * 1024)).toFixed(2)} MB`}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="flex items-center gap-4 w-full">
         <button

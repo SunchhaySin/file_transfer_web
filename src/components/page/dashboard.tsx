@@ -16,100 +16,64 @@ export default function Dashboard() {
   // Screen Sizes and confirguration
   const { isMobile, isTablet, isDesktop } = useScreenSize();
 
-  const { isSelectionPanel, isTransferPanel, setIsSelectionPanel, connected, myDeviceName, setMyDeviceName} =
-    useStateProvider(
-      useShallow((state) => ({
-        isSelectionPanel: state.isSelectionPanel,
-        isTransferPanel: state.isTransferPanel,
-        setIsSelectionPanel: state.setIsSelectionPanel,
+  const {
+    isSelectionPanel,
+    isTransferPanel,
+    setIsSelectionPanel,
+    connected,
+    myDeviceName,
+    setMyDeviceName,
 
-        connected: state.connected,
-        myDeviceName: state.myDeviceName,
-        setMyDeviceName: state.setMyDeviceName
-      })),
-    );
-  
+    isCheckStatus,
+    setIsCheckStatus,
+    isNamingDevice,
+    setIsNamingDevice,
+  } = useStateProvider(
+    useShallow((state) => ({
+      isSelectionPanel: state.isSelectionPanel,
+      isTransferPanel: state.isTransferPanel,
+      setIsSelectionPanel: state.setIsSelectionPanel,
+
+      connected: state.connected,
+      myDeviceName: state.myDeviceName,
+      setMyDeviceName: state.setMyDeviceName,
+
+      isCheckStatus: state.isCheckStatus,
+      setIsCheckStatus: state.setIsCheckStatus,
+      isNamingDevice: state.isNamingDevice,
+      setIsNamingDevice: state.setIsNamingDevice,
+    })),
+  );
+
   useEffect(() => {
     peerDiscovery.start(myDeviceName);
   }, [myDeviceName]);
 
-  const [isCheckStatus, setIsCheckStatus] = useState(false);
-  const [isNamingDevice, setIsNamingDevice] = useState(false);
   const [deviceName, setDeviceName] = useState("");
 
   const saveDeviceName = () => {
-    if(deviceName.length === 0) {
+    if (deviceName.length === 0) {
       alert("Name your device !!");
       return;
     }
     setMyDeviceName(deviceName);
-  }
+  };
 
   const [showScanner, setShowScanner] = useState(false);
 
   return (
     <div
-      className={`relative flex-1 flex flex-col gap-4 items-center bg-white/10 min-h-0 w-full max-h-lvh
-      ${isDesktop ? "px-20 py-10" : isTablet ? "px-12 py-8" : "px-5 py-5"}`}
+      className={`flex-1 flex flex-col gap-4 items-center bg-white/10 min-h-0 w-full 
+      ${isDesktop ? "px-16 py-8 max-h-[calc(100lvh-75px)]" : isTablet ? "px-10 py-5 max-h-[calc(100lvh-54px)]" : "px-5 py-3 max-h-[calc(100lvh-46px)]"}`}
     >
-      <div className="flex flex-col items-center gap-3 w-full shrink-0">
-        <div className="border-2 border-white/60 rounded-full shadow-2xl">
-          <p
-            className={`font-semibold bg-white/50 rounded-full 
-              ${
-                isDesktop
-                  ? "text-3xl px-6 py-4"
-                  : isTablet
-                    ? "text-xl px-4 py-3"
-                    : isMobile && "text-lg px-3 py-2"
-              }`}
-          >
-            Peer-to-Peer File Transfer
-          </p>
-        </div>
-        <AppLabel />
-        <button className="bg-blue-100 rounded-xl p-4 py-1 border border-black flex gap-2 items-center">
-          <p className="font-semibold text-sm">Check Connection Status</p>
-          {isCheckStatus ? (
-            <svg
-              onClick={() => setIsCheckStatus(false)}
-              className="border border-black rounded-full bg-green-300"
-              xmlns="http://www.w3.org/2000/svg"
-              height="24px"
-              viewBox="0 -960 960 960"
-              width="24px"
-              fill="currentColor"
-            >
-              <path d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z" />
-            </svg>
-          ) : (
-            <svg
-              onClick={() => {
-                setIsCheckStatus(true);
-              }}
-              className="border border-black rounded-full bg-green-300"
-              xmlns="http://www.w3.org/2000/svg"
-              height="24px"
-              viewBox="0 -960 960 960"
-              width="24px"
-              fill="currentColor"
-            >
-              <path d="M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z" />
-            </svg>
-          )}
-        </button>
-        <StatusCheck
-          isCheckStatus={isCheckStatus}
-          setIsCheckStatus={setIsCheckStatus}
-          setIsNamingDevice={setIsNamingDevice}
-          connected={connected}
-          myDeviceName={myDeviceName}
-        />
-
-        <hr
-          className={`border border-black/50 w-full ${isDesktop ? "mt-2" : isTablet ? "mt-1" : isMobile && "mt-0"}`}
-        />
-      </div>
+      <StatusCheck
+        isCheckStatus={isCheckStatus}
+        setIsCheckStatus={setIsCheckStatus}
+        setIsNamingDevice={setIsNamingDevice}
+        connected={connected}
+        myDeviceName={myDeviceName}
+      />
+      <AppLabel />
       {!isSelectionPanel && !isTransferPanel && (
         <div className="flex items-center gap-2">
           <button
@@ -118,10 +82,10 @@ export default function Dashboard() {
               setIsCheckStatus(false);
               setIsNamingDevice(false);
             }}
-            className={`h-12 w-45 flex gap-3 items-center justify-center rounded-full px-5 py-2 cursor-pointer bg-white/60 
+            className={`h-12 w-45 flex gap-3 items-center justify-center rounded-full px-5 py-2 cursor-pointer bg-green-300/60 shadow-[0px_0px_4px_0.5px_rgba(0,0,0,0.7)]
               ${
                 isDesktop || isTablet
-                  ? "hover:bg-green-400 hover:shadow-[0px_0px_4px_0.5px_rgba(0,0,0,0.7)] hover:h-14 hover:w-50 transition-all duration-500 ease-in-out"
+                  ? "hover:bg-green-400 hover:h-14 hover:w-50 transition-all duration-500 ease-in-out"
                   : ""
               } 
               `}
@@ -139,18 +103,19 @@ export default function Dashboard() {
             <p className="text-lg font-semibold">Upload</p>
           </button>
           <button
-            className="flex flex-col items-center bg-blue-300 p-1.5 rounded-lg border border-black/60"
+            className="flex items-center justify-center bg-blue-300 p-2 rounded-lg border border-black/60 h-10 w-10 hover:h-12 hover:w-12 transition-all duration-500 ease-in-out shadow-[0px_0px_4px_0.5px_rgba(0,0,0,0.4)]"
             onClick={() => {
               setShowScanner(true);
               setIsCheckStatus(false);
               setIsNamingDevice(false);
             }}
           >
-            <svg 
+            <svg
+              className="shirnk-0"
               xmlns="http://www.w3.org/2000/svg"
-              height="24px"
+              height="28px"
               viewBox="0 -960 960 960"
-              width="24px"
+              width="28px"
               fill="currentColor"
             >
               <path d="M80-680v-200h200v80H160v120H80Zm0 600v-200h80v120h120v80H80Zm600 0v-80h120v-120h80v200H680Zm120-600v-120H680v-80h200v200h-80ZM700-260h60v60h-60v-60Zm0-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm120-120h60v60h-60v-60Zm-60 60h60v60h-60v-60Zm-60-60h60v60h-60v-60Zm240-320v240H520v-240h240ZM440-440v240H200v-240h240Zm0-320v240H200v-240h240Zm-60 500v-120H260v120h120Zm0-320v-120H260v120h120Zm320 0v-120H580v120h120Z" />

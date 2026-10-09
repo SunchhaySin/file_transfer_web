@@ -66,20 +66,9 @@ export default function FileSelectionPanel() {
 
   return (
     <div
-      className={`flex-1 flex flex-col justify-between items-center bg-white/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0
-         ${
-           isDesktop
-             ? "px-10 py-6 w-250"
-             : isTablet && windowWidth >= 1100
-               ? "px-8 py-4 w-200"
-               : windowWidth >= 1000
-                 ? "px-6 py-3 w-175"
-                 : windowWidth >= 800
-                   ? "px-4 py-3 w-150"
-                   : windowWidth >= 550
-                     ? "px-3 py-3 w-115"
-                     : "px-3 py-3 w-80"
-         }`}
+      className={`flex-1 flex flex-col justify-between items-center bg-white/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 w-full 
+          ${isDesktop ? "px-12 py-6" : isTablet && windowWidth >= 1100 ? "px-8 py-4" : isTablet && windowWidth < 1100 ? "px-6 py-3" : isMobile ? "p-3 mb-6" :""}
+         `}
     >
       <p
         className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "p-2 rounded-2xl text-2xl" : isTablet ? "p-2 rounded-xl v" : "p-1 rounded-lg text-lg"}`}
@@ -90,8 +79,10 @@ export default function FileSelectionPanel() {
         <hr className="border border-black/20 w-full mt-1" />
       )}
       <div
-        className={`flex gap-4 items-strech w-full flex-1 min-h-0
-            ${windowWidth >= 1000 ? "flex-row" : "flex-col"}`}
+        className={`flex gap-4 items-strech w-full flex-1 min-h-0 overflow-y-auto
+            ${windowWidth >= 1050 ? "flex-row" : "flex-col"}
+            ${isDesktop ? "px-4 py-2" : isTablet ? "px-3 py-2" : "px-2 py-1"}`}
+            
       >
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -99,7 +90,7 @@ export default function FileSelectionPanel() {
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`group flex flex-col items-center justify-center gap-2 p-4 rounded-2xl cursor-pointer transition-colors duration-300 ease-in-out
+          className={`group flex flex-col items-center justify-center gap-2 p-4 rounded-2xl cursor-pointer transition-colors duration-300 ease-in-out min-h-45
                     ${windowWidth >= 1280 ? "flex-1" : "w-full flex-1"}
                     ${
                       isDragging
@@ -172,9 +163,7 @@ export default function FileSelectionPanel() {
               Selected Files
             </p>
             <ul
-              className={`w-full bg-gray-300 flex-1 flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto min-h-0 
-                ${isTablet && windowWidth < 1000 && "max-h-65"}
-              `}
+              className={`w-full bg-gray-300 flex-1 flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto min-h-0 `}
             >
               {selectedFiles.map((file, index) => (
                 <li

@@ -10,6 +10,10 @@ interface NavigationPanelState {
   isTransferPanel: boolean;
   setIsSelectionPanel: (open: boolean) => void;
   setIsTransferPanel: (open: boolean) => void;
+  isCheckStatus: boolean;
+  setIsCheckStatus: (open: boolean) => void;
+  isNamingDevice: boolean;
+  setIsNamingDevice: (open: boolean) => void;
 };
 
 interface SelectedFilesState {
@@ -48,6 +52,10 @@ export const useStateProvider = create<AppState>((set, get) => ({
   isTransferPanel: false,
   setIsSelectionPanel: (open) => set({ isSelectionPanel: open }),
   setIsTransferPanel: (open) => set({ isTransferPanel: open }),
+  isCheckStatus: false,
+  isNamingDevice: false,
+  setIsCheckStatus: (open) => set({isCheckStatus: open}),
+  setIsNamingDevice: (open) => set({isNamingDevice: open}),
 
   // Selected Files State
   selectedFiles: [],

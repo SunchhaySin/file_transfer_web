@@ -154,7 +154,7 @@ class TransferManager {
     });
 
     try {
-      const link = this.openLink(peerId);
+      const link = this.openLink();
       this.startConnectTimer();
 
       // Standard signaling mode: Trickle ICE (waitForGathering = false)
@@ -225,7 +225,7 @@ class TransferManager {
     this.set({ status: "connecting", direction: "receive", peerId: from });
 
     try {
-      const link = this.openLink(from);
+      const link = this.openLink();
       this.startConnectTimer();
 
       // Standard signaling mode: Trickle ICE
@@ -276,7 +276,7 @@ class TransferManager {
       fileSize: totalSize,
     });
 
-    const link = this.openLink("qr-peer");
+    const link = this.openLink();
     const offer = await link.startAsSender(true);
 
     return offer?.sdp || "";
@@ -299,7 +299,7 @@ class TransferManager {
     });
 
     try {
-      const link = this.openLink(peerId);
+      const link = this.openLink();
       const answer = await link.startAsReceiver(offer, true); // Wait for full ICE candidate gathering
 
       if (!answer?.sdp) {
@@ -348,8 +348,8 @@ class TransferManager {
   // 4. Connection Management & Lifecycle
   // ==========================================
 
-  private openLink(peerId: string) {
-    const link = new PeerLink(peerId, {
+  private openLink() {
+    const link = new PeerLink({
       onOpen: () => this.onLinkOpen(),
       onMessage: (data) => this.onMessage(data),
       onClose: () => {
@@ -392,18 +392,20 @@ class TransferManager {
   private onLinkOpen() {
     if (!this.link) return;
 
-    // SENDER SIDE (QR Mode or Direct Mode)
+   // SENDER (Both WebSocket & QR mode)
     if (this.state.direction === "send") {
       console.log("[rtc] Sender DataChannel opened. Sending batch metadata...");
-      this.link.sendJson({ type: "batch", files: this.state.files });
+
+      // Send file metadata array across the WebRTC DataChannel
+      this.link.sendJson({ type: "batch", files: this.state.files }); 
       
-      // If we are in QR mode, transition from awaiting answer to awaiting accept
+      // Transition sender UI to waiting for receiver to click 'Accept'
       this.set({ status: "awaiting-accept" });
     }
 
-    // RECEIVER SIDE (QR Mode)
+    // RECEIVER (QR mode only)
     if (this.state.direction === "receive" && this.state.status === "qr-answer-ready") {
-      console.log("[rtc] Receiver DataChannel opened from QR Answer!");
+      console.log("[rtc] QR DataChannel connected. Ready to receive batch header...");
       // Prepare state to receive the incoming file batch header
       this.set({ status: "connecting" });
     }

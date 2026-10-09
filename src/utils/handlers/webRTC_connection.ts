@@ -9,7 +9,6 @@ export interface LinkEvents {
 }
 
 export class PeerLink {
-  readonly peerId: string;
   private events: LinkEvents;
   private pc: RTCPeerConnection;
   private dc: RTCDataChannel | null = null;
@@ -18,8 +17,7 @@ export class PeerLink {
   private localQueue: RTCIceCandidateInit[] = [];
   private localReady = false;
 
-  constructor(peerId: string, events: LinkEvents) {
-    this.peerId = peerId;
+  constructor(events: LinkEvents) {
     this.events = events;
 
     const pc = new RTCPeerConnection({ iceServers: [] }); // LAN only: host candidates
