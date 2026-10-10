@@ -1,9 +1,9 @@
 import { useShallow } from "zustand/shallow";
-import { useStateProvider } from "../provider/state_provider";
-import useScreenSize from "../provider/windowWidth";
+import { useStateProvider } from "../../provider/state_provider";
+import useScreenSize from "../../provider/windowWidth";
 import { Modal, Notice } from "./dialog_components";
 import { FileInfoList, FileInfoDownloadList } from "./dialog_components";
-import type { ReceivedFile } from "../../utils/handlers/transferManager";
+import type { ReceivedFile } from "../../utils/transferManager"
 
 export function downloadReceivedFile(file: ReceivedFile) {
   const a = document.createElement("a");

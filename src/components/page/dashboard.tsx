@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useShallow } from "zustand/shallow";
-import useScreenSize from "../provider/windowWidth";
+import { useStateProvider } from "../../provider/state_provider";
+import { peerDiscovery } from "../../handlers/peer_discovery";
 import AppLabel from "../widget/app_label";
-import { useStateProvider } from "../provider/state_provider";
-import FileSelectionPanel from "../widget/file_selection_panel";
-import FileTransferPanel from "../widget/file_transfer_panel";
-import { peerDiscovery } from "../../utils/handlers/peer_discovery";
+import useScreenSize from "../../provider/windowWidth";
+import FileSelectionPanel from "./file_selection_panel";
+import FileTransferPanel from "./file_transfer_panel"
 import StatusCheck from "../widget/statusCheck";
 import DeviceNaming from "../widget/device_naming";
 import TransferDialogSender from "../dialog/tranfer_dialog_sender";
@@ -14,7 +14,7 @@ import QrReceiverScanner from "../dialog/qrReceiverScanner";
 
 export default function Dashboard() {
   // Screen Sizes and confirguration
-  const { isMobile, isTablet, isDesktop } = useScreenSize();
+  const { isTablet, isDesktop } = useScreenSize();
 
   const {
     isSelectionPanel,
@@ -59,7 +59,7 @@ export default function Dashboard() {
     setMyDeviceName(deviceName);
   };
 
-  const [showScanner, setShowScanner] = useState(false);
+  const [showScanner, setShowScanner] = useState(false); // Open camera to scan (offer) as the receiver
 
   return (
     <div

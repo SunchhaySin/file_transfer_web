@@ -1,8 +1,7 @@
-import React from 'react';
-import useScreenSize from '../provider/windowWidth';
+import useScreenSize from '../../provider/windowWidth';
 
 export default function Footer() {
-  const { isMobile, isTablet, isDesktop } = useScreenSize();
+  const { isTablet, isDesktop } = useScreenSize();
 
   const paddingClasses = isDesktop
     ? "px-12 md:px-24 py-6 text-sm"

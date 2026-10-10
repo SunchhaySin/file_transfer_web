@@ -1,23 +1,19 @@
-// qr_payload.ts - Handles SDP compression, payload serialization, and QR DataURL generation.
-import QRCode from "qrcode";
-
 export type QrKind = 'offer' | 'answer';
 
 export interface QrPayload {
-  v: 1;          // format version
+  v: 1;           // format version
   k: QrKind;     // offer (sender -> receiver) or answer (receiver -> sender)
-  id: string;    // pairing id: the answer repeats the offer's id so the sender can match them
+  id: string;    // pairing id
   name: string;  // device name, display only
-  sdp: string;   // description INCLUDING every ICE candidate (no trickle)
+  sdp: string;   // streamlined SDP description
 }
 
 const ZIP = 'P2P1.';
 const RAW = 'P2P0.';
-const MAX_SDP_CHARS = 8000;
+const MAX_SDP_CHARS = 4000;
 
-// A version-40 QR holds 2953 bytes at level L.
-// Keep it around 1800-2300 characters so camera scanning remains fast and reliable.
-const MAX_QR_CHARS = 2300;
+// Lowered limit to ensure fewer data modules and ultra-fast mobile camera scanning
+const MAX_QR_CHARS = 1200;
 
 // 8 random bytes as hex.
 export function newPairingId(): string {
@@ -99,30 +95,54 @@ function validate(raw: unknown): QrPayload {
   };
 }
 
-// ---- SDP Compression & Rendering ----
+// ---- Aggressive SDP Stripping for Low Density QR Codes ----
 export function compactSdp(sdp: string): string {
   return sdp
     .split("\r\n")
     .filter((line) => {
+      // Strip out all metadata, extra codecs, RTCP configurations, and non-essential attributes
       if (line.startsWith("b=")) return false;
       if (line.startsWith("a=rtcp-fb:")) return false;
       if (line.startsWith("a=fmtp:")) return false;
       if (line.startsWith("a=extmap:")) return false;
       if (line.startsWith("a=msid:")) return false;
       if (line.startsWith("a=ssrc:")) return false;
+      if (line.startsWith("a=ice-options:")) return false;
+      if (line.startsWith("a=candidate:") && !line.includes("typ host")) {
+        // Keep only local host candidates to save massive space in local network P2P transfers
+        return false;
+      }
       return true;
     })
     .join("\r\n");
 }
 
-export async function payloadToQrDataUrl(text: string, size = 600): Promise<string> {
+// export function compactSdp(sdp: string): string {
+//   return sdp
+//     .split("\r\n")
+//     .filter((line) => {
+//       if (line.startsWith("b=")) return false;
+//       if (line.startsWith("a=rtcp-fb:")) return false;
+//       if (line.startsWith("a=fmtp:")) return false;
+//       if (line.startsWith("a=extmap:")) return false;
+//       if (line.startsWith("a=msid:")) return false;
+//       if (line.startsWith("a=ssrc:")) return false;
+//       if (line.startsWith("a=ice-options:")) return false;
+      
+//       // Keep ONLY local IPv4 host candidates
+//       if (line.startsWith("a=candidate:")) {
+//         if (!line.includes("typ host") || line.includes(":")) {
+//           return false;
+//         }
+//       }
+//       return true;
+//     })
+//     .join("\r\n");
+// }
+
+// Validates size threshold before letting React render components
+export function validateQrCapacity(text: string): void {
   if (text.length > MAX_QR_CHARS) {
-    throw new Error(`The connection code is too large for one QR code (${text.length} characters).`);
+    throw new Error(`The connection payload is too dense (${text.length} chars). Try moving closer or simplifying network interfaces.`);
   }
-  return QRCode.toDataURL(text, {
-    errorCorrectionLevel: "L",
-    margin: 3,
-    width: size,
-    color: { dark: "#000000", light: "#ffffff" },
-  });
 }

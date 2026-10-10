@@ -1,6 +1,6 @@
 import Dashboard from "./dashboard";
 import Header from "./header";
-import { useStateProvider } from "../provider/state_provider";
+import { useStateProvider } from "../../provider/state_provider";
 import { useShallow } from "zustand/shallow";
 
 export default function Canvas() {

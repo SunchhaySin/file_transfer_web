@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { transfer } from "../../utils/handlers/transferManager"; // Adjust path if needed
-import { decodePayload } from "../../utils/handlers/qr_code";       // Adjust path if needed
+import { transfer } from "../../utils/transferManager"
+import { decodePayload } from "../../handlers/qr_code";    
 
 interface QrSenderScannerProps {
   expectedPairingId: string;

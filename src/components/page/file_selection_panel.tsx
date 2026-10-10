@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { useShallow } from 'zustand/shallow';
-import useScreenSize from '../provider/windowWidth';
-import { useStateProvider } from '../provider/state_provider';
-import IconCategorizer from '../../utils/misc/iconHelper';
+import useScreenSize from '../../provider/windowWidth';
+import { useStateProvider } from '../../provider/state_provider';
+import IconCategorizer from '../../misc/iconHelper';
 import dragAndDropImage from '../../assets/drag-drop-svgrepo-com.svg';
 
 export default function FileSelectionPanel() {
@@ -95,7 +95,7 @@ export default function FileSelectionPanel() {
                     ${
                       isDragging
                         ? "border-blue-500 bg-blue-400/50 scale-[0.98] shadow-[inset_0_4px_12px_rgba(0,0,0,0.25)]"
-                        : "bg-gray-300/60 border border-gray-400/40 hover:bg-blue-300/40"
+                        : "bg-blue-50/60 border border-gray-400/40 hover:bg-blue-200/80 shadow-[0px_0px_3px_0.25px_rgba(0,0,0,0.1)]"
                     }`}
         >
           {isDragging ? (
@@ -156,19 +156,19 @@ export default function FileSelectionPanel() {
         </div>
         {selectedFiles.length > 0 ? (
           <div
-            className={`bg-gray-300 flex flex-col rounded-2xl min-h-0 overflow-hidden
+            className={`flex flex-col rounded-2xl min-h-0 overflow-hidden
                 ${windowWidth >= 1280 ? "flex-1" : "w-full flex-2"}`}
           >
-            <p className="font-bold text-lg text-center bg-blue-300 p-2 rounded-lg">
+            <p className="font-bold text-lg text-center bg-blue-300 p-2 rounded-t-2xl">
               Selected Files
             </p>
             <ul
-              className={`w-full bg-gray-300 flex-1 flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto min-h-0 `}
+              className={`w-full bg-blue-50 flex-1 flex flex-col gap-1 p-3 rounded-b-2xl overflow-y-auto min-h-0 `}
             >
               {selectedFiles.map((file, index) => (
                 <li
                   key={index}
-                  className="text-gray-700 w-full bg-white/60 rounded-lg px-3 py-1 flex items-center min-w-0"
+                  className="text-gray-700 w-full bg-white/60 rounded-lg px-3 py-1 flex items-center min-w-0 shadow-[0px_0px_3px_0.25px_rgba(0,0,0,0.3)]"
                 >
                   <div className="flex-1 flex gap-5 items-center min-w-0">
                     <span className="shrink-0">
@@ -212,12 +212,6 @@ export default function FileSelectionPanel() {
       <p className="text-gray-500 text-sm">Maximum File Size: 1GB</p>
       <div className="flex items-center gap-4 w-full">
         <button
-          className="flex-1 py-2 bg-blue-400 rounded-xl hover:bg-blue-500 transition-colors duration-200 ease-in-out cursor-pointer"
-          onClick={handleOnContinue}
-        >
-          Continue
-        </button>
-        <button
           className="flex-1 py-2 bg-gray-400/80 rounded-xl hover:bg-gray-400 transition-colors duration-200 ease-in-out cursor-pointer"
           onClick={() => {
             setIsSelectionPanel(false);
@@ -225,6 +219,12 @@ export default function FileSelectionPanel() {
           }}
         >
           Close
+        </button>
+        <button
+          className="flex-1 py-2 bg-blue-400 rounded-xl hover:bg-blue-500 transition-colors duration-200 ease-in-out cursor-pointer"
+          onClick={handleOnContinue}
+        >
+          Continue
         </button>
       </div>
     </div>

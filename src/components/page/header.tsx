@@ -1,4 +1,4 @@
-import useScreenSize from "../provider/windowWidth";
+import useScreenSize from "../../provider/windowWidth";
 import AppLogo from "../../assets/app_logo_svg";
 
 

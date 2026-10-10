@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { transfer } from "../../utils/handlers/transferManager";
+import { QRCodeSVG } from 'qrcode.react'
+import { transfer } from "../../utils/transferManager"
 import {
   decodePayload,
   encodePayload,
   compactSdp,
-  payloadToQrDataUrl,
-} from "../../utils/handlers/qr_code";
+  validateQrCapacity,
+} from "../../handlers/qr_code";
 import { Modal } from "./dialog_components";
 
 interface QrReceiverScannerProps {
@@ -17,7 +18,7 @@ const ELEMENT_ID = "qr-reader-receiver";
 
 export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
   const [step, setStep] = useState<"scanning" | "generating" | "show-answer" | "failed">("scanning");
-  const [answerQrUrl, setAnswerQrUrl] = useState<string>("");
+  const [answerPayloadString, setAnswerPayloadString] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -31,33 +32,37 @@ export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
 
     const startScanner = async () => {
       try {
+        const html5Qrcode = new Html5Qrcode(ELEMENT_ID);
+        scannerRef.current = html5Qrcode;
+
         await html5Qrcode.start(
-          { facingMode: "environment" }, // Explicitly request rear/back camera
+          { facingMode: "environment" },
           {
-            fps: 15, // Higher frame rate for faster detection
+            fps: 15,
             qrbox: { width: 260, height: 260 },
           },
-          (scannedText: string) => {
+          async (scannedText: string) => {
             if (!isSubscribed) return;
+            console.log("[QR Receiver] Scanned offer text length:", scannedText.length);
 
-            // Stop scanner safely before processing payload
-            html5Qrcode
-              .stop()
-              .then(() => {
-                if (isSubscribed) {
-                  handleScannedOffer(scannedText);
-                }
-              })
-              .catch((err) => console.warn("Error stopping scanner", err));
+            try {
+              if (html5Qrcode && html5Qrcode.isScanning) {
+                await html5Qrcode.stop();
+              }
+            } catch (err) {
+              console.warn("Error stopping scanner safely:", err);
+            }
+
+            if (isSubscribed) {
+              handleScannedOffer(scannedText);
+            }
           },
-          () => {
-            // Frame scan failure - ignore noise
-          }
+          () => {}
         );
       } catch (err: any) {
         if (isSubscribed) {
-          console.error("Camera access failed", err);
-          setErrorMessage("Could not access rear camera. Check permissions or camera selection.");
+          console.error("Camera access failed:", err);
+          setErrorMessage("Could not access camera. Check permissions.");
           setStep("failed");
         }
       }
@@ -85,13 +90,11 @@ export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
         throw new Error("Scanned code is not an offer code.");
       }
 
-      // 2. Pass offer SDP to TransferManager to gather answer SDP
       const rawAnswerSdp = await transfer.acceptQROffer(offerPayload.name, offerPayload.sdp);
       if (!rawAnswerSdp) {
         throw new Error("Failed to generate WebRTC answer.");
       }
 
-      // 3. Compact & encode answer payload
       const compressedAnswerSdp = compactSdp(rawAnswerSdp);
       const answerPayload = await encodePayload({
         v: 1,
@@ -101,9 +104,8 @@ export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
         sdp: compressedAnswerSdp,
       });
 
-      // 4. Render Answer QR DataURL
-      const qrUrl = await payloadToQrDataUrl(answerPayload);
-      setAnswerQrUrl(qrUrl);
+      validateQrCapacity(answerPayload);
+      setAnswerPayloadString(answerPayload);
       setStep("show-answer");
     } catch (err: any) {
       console.error("[rtc] QR Accept Error:", err);
@@ -116,17 +118,18 @@ export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
     <Modal title="Receive via QR Code">
       <div className="flex flex-col items-center justify-center p-4 gap-4 max-w-sm mx-auto">
         {step === "scanning" && (
-          <div className="w-full flex flex-col items-center">
+          <div className="w-full flex flex-col items-center gap-3">
             <p className="text-sm font-medium text-gray-700 text-center mb-3">
               Point your camera at the Offer QR code on the sender's device
             </p>
             <div
               id={ELEMENT_ID}
-              className="w-full rounded-xl overflow-hidden border border-gray-200 min-h-[260px] bg-black/10"
+              className="w-full rounded-xl overflow-hidden border border-gray-200 min-h-65 bg-black/10"
             />
             <button
               onClick={onClose}
-              className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-medium text-sm transition-colors"
+              className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-red-500 
+                  rounded-xl shadow-[0px_0px_4px_0.5px_rgba(0,0,0,0.2)] font-medium text-sm transition-colors"
             >
               Cancel
             </button>
@@ -140,22 +143,35 @@ export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
             <p className="text-xs text-gray-500">Gathering local ICE network candidates.</p>
           </div>
         )}
+        
 
+        {/* QR container the receiver's SDP and ICE answer  */}
         {step === "show-answer" && (
-          <div className="flex flex-col items-center text-center gap-3">
-            <h3 className="font-semibold text-green-700 text-md">Offer Accepted!</h3>
-            <p className="text-xs text-gray-600">
-              Show this Answer QR code back to the <strong>Sender</strong> to complete the connection.
-            </p>
-            <img
-              src={answerQrUrl}
-              alt="Answer QR Code"
-              className="rounded-xl bg-white shadow-md p-2 w-64 h-64"
-            />
-            <button onClick={onClose} className="mt-2 text-xs text-red-500 hover:underline">
-              Close
-            </button>
-          </div>
+          <Modal title="Shoe Answer QR-Code">
+            <div className="flex flex-col items-center text-center gap-3">
+              <h3 className="font-bold text-green-700 text-md">Offer Accepted!</h3>
+              <p className="text-xs text-gray-600">
+                Show this Answer QR code back to the <strong>Sender</strong> to complete the connection.
+              </p>
+              {/* Rendered cleanly via qrcode.react SVG */}
+              <div className="bg-white p-3 rounded-2xl shadow-md border border-gray-200">
+                <QRCodeSVG
+                  value={answerPayloadString}
+                  size={320}
+                  level="Q"
+                  bgColor="#ffffff"
+                  fgColor="#022c22"
+                  marginSize={2}
+                />
+              </div>
+              <button onClick={onClose} 
+                className="text-xs px-5 py-2 bg-gray-200 hover:bg-gray-300 text-red-500 
+                  rounded-xl shadow-[0px_0px_4px_0.5px_rgba(0,0,0,0.2)] cursor-pointer font-semibold"
+                >
+                Close
+              </button>
+            </div>
+          </Modal>
         )}
 
         {step === "failed" && (
@@ -164,7 +180,7 @@ export default function QrReceiverScanner({ onClose }: QrReceiverScannerProps) {
             <p className="text-xs text-red-500">{errorMessage}</p>
             <button
               onClick={() => setStep("scanning")}
-              className="mt-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-xl text-sm transition-colors"
+              className="px-5 py-2 bg-green-500 hover:bg-green-600 font-medium rounded-xl text-xs shadow-[0px_0px_4px_0.5px_rgba(0,0,0,0.2)] transition-colors"
             >
               Try Again
             </button>

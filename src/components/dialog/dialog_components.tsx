@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { TransferState } from "../../utils/handlers/transferManager";
-import type { ReceivedFile } from "../../utils/handlers/transferManager";
+import type { TransferState } from "../../utils/transferManager"
+import type { ReceivedFile } from "../../utils/transferManager"
+import useScreenSize from "../../provider/windowWidth";
 
 export const formatSize = (n: number) =>
   n < 1024 ? `${n} B`
@@ -12,13 +13,16 @@ export const formatSize = (n: number) =>
 // Popup shell. The portal renders it on <body>, so a parent with a
 // transform or backdrop-blur can't trap the fixed overlay.
 export function Modal({ title, children }: { title: string; children: ReactNode }) {
+  const { isTablet, isDesktop } = useScreenSize();
+  const maxWidthClass = (isDesktop || isTablet) ? "max-w-md" : "max-w-sm";
+
   return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-sm rounded-2xl bg-blue-200 p-5 shadow-2xl flex flex-col gap-4 text-black/70"
+        className={`w-full ${maxWidthClass} rounded-2xl bg-blue-200 p-5 shadow-2xl flex flex-col gap-4 text-black/70`}
       >
         {children}
       </div>
