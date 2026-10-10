@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { peerDiscovery } from "../../utils/handlers/peer_discovery";
-import type { Peer } from '../../utils/config/client'
-import { transfer } from "../../utils/handlers/transfer";
-import type { TransferState as TransferSnapshot} from "../../utils/handlers/transfer";
+import { peerDiscovery } from "../handlers/peer_discovery";
+import type { Peer } from '../config/client'
+import { transfer } from "../utils/transferManager";
+import type { TransferState as TransferSnapshot} from "../utils/transferManager";
 
 
 interface NavigationPanelState {
@@ -10,6 +10,10 @@ interface NavigationPanelState {
   isTransferPanel: boolean;
   setIsSelectionPanel: (open: boolean) => void;
   setIsTransferPanel: (open: boolean) => void;
+  isCheckStatus: boolean;
+  setIsCheckStatus: (open: boolean) => void;
+  isNamingDevice: boolean;
+  setIsNamingDevice: (open: boolean) => void;
 };
 
 interface SelectedFilesState {
@@ -36,6 +40,8 @@ interface TransferState {
   declineTransfer: () => void;
   clearTransfer: () => void;
   cancelRequest: () => void;
+
+  generateQROffer: (files: File[]) => Promise<string>,
 }
 
 type AppState = NavigationPanelState & SelectedFilesState & TransferState & DiscoveryStoreState;
@@ -46,6 +52,10 @@ export const useStateProvider = create<AppState>((set, get) => ({
   isTransferPanel: false,
   setIsSelectionPanel: (open) => set({ isSelectionPanel: open }),
   setIsTransferPanel: (open) => set({ isTransferPanel: open }),
+  isCheckStatus: false,
+  isNamingDevice: false,
+  setIsCheckStatus: (open) => set({isCheckStatus: open}),
+  setIsNamingDevice: (open) => set({isNamingDevice: open}),
 
   // Selected Files State
   selectedFiles: [],
@@ -78,6 +88,10 @@ export const useStateProvider = create<AppState>((set, get) => ({
   declineTransfer: () => transfer.decline(),
   clearTransfer: () => transfer.reset(),
   cancelRequest: () => transfer.cancelRequest(),
+  
+  generateQROffer: async (files: File[]) => {
+    return await transfer.generateQROffer(files);
+  },
 }));
 
 // Connect to the peer Discovery service

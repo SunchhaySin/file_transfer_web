@@ -1,4 +1,4 @@
-import useScreenSize  from '../provider/windowWidth';
+import useScreenSize  from '../../provider/windowWidth';
 
 
 export default function AppLabel() {

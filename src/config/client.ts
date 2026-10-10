@@ -1,5 +1,3 @@
-// client.ts - signaling client class (no instance created here; see signaling.ts)
-
 export interface Peer {
   id: string;
   name: string;
@@ -110,7 +108,7 @@ export class SignalingClient {
       this.peers = [];
       this.emit('close');
       if (!this.closedByUser) {
-        this.reconnectTimer = window.setTimeout(() => this.connect(), 2000);
+        this.reconnectTimer = window.setTimeout(() => this.connect(), 5000);
       }
     };
 

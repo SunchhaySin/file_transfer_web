@@ -1,26 +1,23 @@
-import { signaling } from '../config/signaling';
-
 const BUFFER_LOW = 1024 * 1024;
 
 export interface LinkEvents {
   onOpen: () => void;
   onMessage: (data: string | ArrayBuffer) => void;
-  onClose: () => void;              // channel closed on its own
+  onClose: () => void;
   onError: (message: string) => void;
+  onLocalIceCandidate: (candidate: RTCIceCandidateInit) => void;
 }
 
 export class PeerLink {
-  readonly peerId: string;
   private events: LinkEvents;
   private pc: RTCPeerConnection;
   private dc: RTCDataChannel | null = null;
   private closed = false;
-  private remoteQueue: RTCIceCandidateInit[] = []; // their candidates, waiting for setRemoteDescription
-  private localQueue: RTCIceCandidateInit[] = [];  // our candidates, held until the offer/answer is sent
+  private remoteQueue: RTCIceCandidateInit[] = [];
+  private localQueue: RTCIceCandidateInit[] = [];
   private localReady = false;
 
-  constructor(peerId: string, events: LinkEvents) {
-    this.peerId = peerId;
+  constructor(events: LinkEvents) {
     this.events = events;
 
     const pc = new RTCPeerConnection({ iceServers: [] }); // LAN only: host candidates
@@ -29,41 +26,94 @@ export class PeerLink {
     pc.onicecandidate = (e) => {
       if (!e.candidate || this.closed) return;
       const c = e.candidate.toJSON();
-      if (this.localReady) signaling.sendIce(peerId, c);
-      else this.localQueue.push(c);
+      if (this.localReady) {
+        this.events.onLocalIceCandidate(c);
+      } else {
+        this.localQueue.push(c);
+      }
     };
+
     pc.oniceconnectionstatechange = () => console.log('[rtc] ice state:', pc.iceConnectionState);
     pc.onconnectionstatechange = () => {
       console.log('[rtc] connection state:', pc.connectionState);
-      if (!this.closed && pc.connectionState === 'failed') this.events.onError('Connection failed');
+      if (!this.closed && pc.connectionState === 'failed') {
+        this.events.onError('Connection failed');
+      }
     };
   }
 
   // ---- negotiation ----
-  async startAsSender() {
+  async waitForIceGathering(): Promise<void> {
+    if (this.pc.iceGatheringState === 'complete') return;
+
+    return new Promise((resolve) => {
+      const checkState = () => {
+        if (this.pc.iceGatheringState === 'complete') {
+          this.pc.removeEventListener('icegatheringstatechange', checkState);
+          resolve();
+        }
+      };
+      this.pc.addEventListener('icegatheringstatechange', checkState);
+
+      // Safety timeout after 3s in case candidate gathering gets stuck
+      setTimeout(() => {
+        this.pc.removeEventListener('icegatheringstatechange', checkState);
+        resolve();
+      }, 3000);
+    });
+  }
+
+  async startAsSender(waitForGathering = false): Promise<RTCSessionDescriptionInit | undefined> {
+    // 1. Sender MUST create the Data Channel
     this.attachChannel(this.pc.createDataChannel('file'));
+
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
-    if (this.closed) return;
-    signaling.sendOffer(this.peerId, offer);
-    this.releaseLocalIce(); // candidates go out only AFTER the offer
-    console.log('[rtc] offer sent to', this.peerId);
+    if (this.closed) return undefined;
+
+    if (waitForGathering) {
+      await this.waitForIceGathering();
+      return this.pc.localDescription ?? undefined;
+    }
+
+    // Release queued local candidates AFTER local description is set
+    this.releaseLocalIce();
+    return offer;
   }
 
-  async startAsReceiver(offer: RTCSessionDescriptionInit) {
+  async startAsReceiver(
+    offer: RTCSessionDescriptionInit,
+    waitForGathering = false
+  ): Promise<RTCSessionDescriptionInit | undefined> {
+    // 2. Receiver MUST listen for incoming Data Channel
     this.pc.ondatachannel = (e) => this.attachChannel(e.channel);
+
     await this.pc.setRemoteDescription(offer);
     await this.flushRemoteIce();
+
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
-    if (this.closed) return;
-    signaling.sendAnswer(this.peerId, answer);
-    this.releaseLocalIce(); // candidates go out only AFTER the answer
-    console.log('[rtc] answer sent to', this.peerId);
+    if (this.closed) return undefined;
+
+    if (waitForGathering) {
+      await this.waitForIceGathering();
+      return this.pc.localDescription ?? undefined;
+    }
+
+    // Release queued local candidates AFTER answer is set
+    this.releaseLocalIce();
+    return answer;
   }
 
-  async applyAnswer(answer: RTCSessionDescriptionInit) {
-    if (this.closed || this.pc.signalingState !== 'have-local-offer') return;
+  async applyAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
+    // Prevent setRemoteDescription error when signalingState is already stable
+    if (this.pc.signalingState !== 'have-local-offer') {
+      console.warn(
+        `[rtc] Ignored redundant answer (signalingState: "${this.pc.signalingState}")`
+      );
+      return;
+    }
+
     await this.pc.setRemoteDescription(answer);
     await this.flushRemoteIce();
   }
@@ -74,21 +124,29 @@ export class PeerLink {
       this.remoteQueue.push(c);
       return;
     }
-    try { await this.pc.addIceCandidate(c); } catch (e) { console.warn('[rtc] addIceCandidate failed', e); }
+    try {
+      await this.pc.addIceCandidate(c);
+    } catch (e) {
+      console.warn('[rtc] addIceCandidate failed', e);
+    }
   }
 
   private releaseLocalIce() {
     this.localReady = true;
     const queued = this.localQueue;
     this.localQueue = [];
-    queued.forEach((c) => signaling.sendIce(this.peerId, c));
+    queued.forEach((c) => this.events.onLocalIceCandidate(c));
   }
 
   private async flushRemoteIce() {
     const queued = this.remoteQueue;
     this.remoteQueue = [];
     for (const c of queued) {
-      try { await this.pc.addIceCandidate(c); } catch (e) { console.warn('[rtc] queued ICE failed', e); }
+      try {
+        await this.pc.addIceCandidate(c);
+      } catch (e) {
+        console.warn('[rtc] queued ICE failed', e);
+      }
     }
   }
 
@@ -106,7 +164,7 @@ export class PeerLink {
       if (!this.closed) this.events.onMessage(e.data);
     };
     dc.onerror = (e) => {
-      if (this.closed) return; // expected when we close on purpose
+      if (this.closed) return;
       console.warn('[rtc] data channel error', e);
       this.events.onError('Data channel error');
     };
@@ -125,14 +183,17 @@ export class PeerLink {
 
   sendJson(obj: object) {
     if (!this.isOpen) return;
-    try { this.dc!.send(JSON.stringify(obj)); } catch { /* channel closing */ }
+    try {
+      this.dc!.send(JSON.stringify(obj));
+    } catch {
+      /* channel closing */
+    }
   }
 
   sendBinary(buf: ArrayBuffer) {
-    this.dc!.send(buf); // throws if the channel closed; callers treat that as a failure
+    this.dc!.send(buf);
   }
 
-  // Resolves when the send buffer drops below the threshold (or the channel closes)
   waitForLowBuffer(): Promise<void> {
     const dc = this.dc;
     if (!dc || dc.readyState !== 'open') return Promise.resolve();
@@ -153,13 +214,15 @@ export class PeerLink {
     }
   }
 
-  // graceful = wait a moment so a final message (reject/cancel) can reach the other side
   close(graceful = false) {
     if (this.closed) return;
-    this.closed = true; // from here on, no event reaches the manager
+    this.closed = true;
     const dc = this.dc;
     const pc = this.pc;
-    const shut = () => { dc?.close(); pc.close(); };
+    const shut = () => {
+      dc?.close();
+      pc.close();
+    };
     if (graceful) setTimeout(shut, 300);
     else shut();
   }
