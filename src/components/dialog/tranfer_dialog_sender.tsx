@@ -1,5 +1,5 @@
 import { useShallow } from "zustand/shallow";
-import { useStateProvider } from "../provider/state_provider";
+import { useStateProvider } from "../../provider/state_provider";
 import { Modal, Notice } from "./dialog_components";
 import { FileInfoList } from "./dialog_components";
 

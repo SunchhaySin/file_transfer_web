@@ -1,5 +1,4 @@
-// file_stream.ts - preparing files, streaming them out, and reassembling them on the other side.
-import type { PeerLink } from "./webRTC";
+import type { PeerLink } from "./webRTC_connection";
 
 export const CHUNK = 16 * 1024;          // size of each message on the wire
 const BLOCK = 256 * 1024;                // how much of the file we read from disk at a time

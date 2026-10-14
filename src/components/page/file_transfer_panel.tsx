@@ -1,7 +1,16 @@
+import useScreenSize from "../../provider/windowWidth";
+import IconCategorizer from "../../misc/iconHelper";
+import { useState } from "react";
 import { useShallow } from "zustand/shallow";
-import { useStateProvider } from "../provider/state_provider";
-import useScreenSize from "../provider/windowWidth";
-import IconCategorizer from "../../utils/misc/iconHelper";
+import { useStateProvider } from "../../provider/state_provider";
+import { QrCodeDisplay } from "../widget/qr_image_display";
+import {
+  encodePayload,
+  newPairingId,
+  compactSdp,
+  validateQrCapacity,
+} from "../../handlers/qr_code";
+
 
 export default function FileTransferPanel() {
   const { windowWidth, isMobile, isTablet, isDesktop } = useScreenSize();
@@ -18,6 +27,8 @@ export default function FileTransferPanel() {
     transferState: t,
     sendSelectedFiles,
     clearTransfer,
+
+    generateQROffer,
   } = useStateProvider(
     useShallow((state) => ({
       setIsSelectionPanel: state.setIsSelectionPanel,
@@ -32,6 +43,8 @@ export default function FileTransferPanel() {
       transferState: state.transferState,
       sendSelectedFiles: state.sendSelectedFiles,
       clearTransfer: state.clearTransfer,
+
+      generateQROffer: state.generateQROffer,
     })),
   );
 
@@ -56,71 +69,70 @@ export default function FileTransferPanel() {
       ? "text-[12px]"
       : "text-[11px]";
 
-  const boxPadding = isDesktop 
-    ? "px-6 py-4"
+  const boxPadding = isDesktop
+    ? "px-4 py-3"
     : isTablet
-      ? "px-4 py-3"
+      ? "px-3 py-3"
       : "px-2 py-2";
-  //  ${isDesktop ? "max-h-[calc(100lvh-29rem)]" : isTablet ? "max-h-[calc(100lvh-24rem)]" : isMobile && "max-h-[calc(100lvh-36rem)]"}
+
+
+  const [showQr, setShowQr] = useState(false);
+  const [payloadString, setPayloadString] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [pairingId, setPairingId] = useState<string>("");
+
+   const handleGenerateQr = async () => {
+      try {
+        setQrError(null);
+        const pid = newPairingId();
+        setPairingId(pid);
+  
+        const rawSdp = await generateQROffer(selectedFiles);
+        const compressedSdp = compactSdp(rawSdp);
+  
+        const encoded = await encodePayload({
+          v: 1,
+          k: "offer",
+          id: pid,
+          name: "My Device",
+          sdp: compressedSdp,
+        });
+  
+        // Validate capacity before setting state
+        validateQrCapacity(encoded);
+        setPayloadString(encoded);
+        setShowQr(true);
+      } catch (err: any) {
+        setQrError(err?.message || "Failed to generate QR code");
+      }
+    };
+
   return (
     <div
-      className={`flex-1 flex flex-col justify-between items-center bg-blue-200/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 
-            ${isDesktop ? "max-h-[calc(100dvh-19rem)]" : isTablet ? "max-h-[calc(100dvh-16rem)]" : "max-h-[calc(100dvh-14rem)]"}
-            ${
-              isDesktop && windowWidth >= 1400
-                ? "px-8 py-4 w-250"
-                : isDesktop && windowWidth < 1400
-                  ? "px-6 py-4 w-250"
-                  : isTablet && windowWidth >= 1100
-                    ? "px-6 py-4 w-225"
-                    : windowWidth >= 1000
-                      ? "px-5 py-3 w-200"
-                      : windowWidth >= 800
-                        ? "px-4 py-3 w-175"
-                        : windowWidth >= 550
-                          ? "px-3 py-3 w-120"
-                          : "px-3 py-3 w-80"
-            }`}
+      className={`flex-1 flex flex-col justify-between items-center bg-blue-200/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 w-full
+            ${isDesktop ? "px-12 py-6" : isTablet && windowWidth >= 1100 ? "px-8 py-4" : isTablet && windowWidth < 1100 ? "px-6 py-3" : isMobile && "p-3"}
+          `}
     >
-      <p
-        className={`${isDesktop ? "text-2xl" : isTablet ? "text-xl" : "lg"} font-semibold`}
+       <p
+        className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "p-2 rounded-2xl text-2xl" : isTablet ? "p-2 rounded-xl v" : "p-1 rounded-lg text-lg"}`}
       >
         Begin the file tranfer
       </p>
-      {windowWidth >= 800 && (
-        <hr className="border border-black/20 w-full" />
-      )}
+      {windowWidth >= 800 && <hr className="border border-black/20 w-full" />}
       <div
         className={`w-full flex-1 min-h-0 ${isDesktop ? "px-4 py-2" : isTablet ? "px-3 py-2" : "px-2 py-1"}
           ${windowWidth >= 1000 ? "grid grid-cols-2 gap-3" : "flex flex-col gap-2 overflow-y-auto"}`}
       >
-        {selectedFiles.length > 0 && (
-          <ul
-            className={`w-full bg-blue-100/80 border border-blue-300 shadow-[0px_0px_2px_0.25px_blue] flex flex-col gap-1 p-2 rounded-2xl overflow-y-auto 
-                ${windowWidth >= 1000 ? "h-full" : "flex-1 min-h-44"}`}
-          >
-            {selectedFiles.map((file, index) => (
-              <li
-                key={index}
-                className="text-gray-700 w-full bg-white/60 rounded-lg px-3 py-1"
-              >
-                <div className="flex-1 flex gap-5 items-center min-w-0">
-                  <span className="shrink-0">{IconCategorizer(file.name)}</span>
-                  <div className="flex flex-col items-start min-w-0">
-                    <p className="font-semibold truncate w-full">{file.name}</p>
-                    <p className="text-sm">{`${(file.size / (1024 * 1024)).toFixed(2)} MB`}</p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto min-h-0" : "shrink-0"}`}>
+      
+        <div
+          className={`flex flex-col gap-1 ${windowWidth >= 1000 ? "h-full overflow-y-auto " : "shrink-0"}`}
+        >
           <div
-            className={`bg-blue-100 flex flex-col gap-3 items-center justify-start min-h-0 w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1"}`}
+            className={`bg-blue-100 flex flex-col items-center justify-start w-full rounded-2xl ${boxPadding} ${windowWidth >= 1000 && "flex-1 "}
+              ${isMobile ? "gap-1" : "gap-2"}`}
           >
             <div
-              className={`flex flex-col items-center w-full ${windowWidth >= 1280 ? "gap-3" : "gap-2"}`}
+              className={`flex flex-col items-center w-full ${isDesktop ? "gap-3" : isTablet ? "gap-2" : "gap-1"}`}
             >
               <div className="flex gap-3 items-center justify-center w-full">
                 <button
@@ -129,9 +141,10 @@ export default function FileTransferPanel() {
                 >
                   {busy ? "Sharing..." : "Share Directly"}
                 </button>
+
                 {windowWidth >= 1280 && (
                   <button
-                    // onClick={onShare}
+                    onClick={handleGenerateQr}
                     className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50 flex-1"
                   >
                     Generate QR-Code
@@ -164,7 +177,9 @@ export default function FileTransferPanel() {
                 </p>
               </div>
             </div>
-            <div className="flex-1 w-full flex items-center justify-center bg-blue-50 rounded-2xl">
+            <div
+              className={`flex-1 w-full flex items-center justify-center ${peers.length > 0 && "bg-blue-50 max-h-30"} shadow-[0px_0px_3px_0.25px_rgba(0,0,0,0.25)] rounded-2xl`}
+            >
               {peers.length > 0 ? (
                 <ul className="flex w-full gap-3 overflow-x-auto overflow-y-hidden snap-x snap-proximity">
                   {peers.map((p) => {
@@ -189,7 +204,7 @@ export default function FileTransferPanel() {
                           {p.name[0]?.toUpperCase()}
                         </button>
                         <span
-                          className={`max-w-24 truncate ${selected ? "font-semibold text-blue-700" : ""}`}
+                          className={`max-w-18 text-xs truncate ${selected ? "font-semibold text-blue-700" : ""}`}
                         >
                           {p.name}
                         </span>
@@ -198,17 +213,19 @@ export default function FileTransferPanel() {
                   })}
                 </ul>
               ) : (
-                <div className="flex gap-2 items-center justify-center border border-gray-400 rounded-xl px-3 py-1 ">
+                <div className={`flex gap-2 items-center justify-center border border-gray-400 bg-blue-50 rounded-xl px-3 py-1 w-full h-full
+
+                    ${isDesktop || isTablet ? "flex-col" : "flex-row"}`}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    height="24px"
+                    height={isDesktop ? "38px" : isTablet ? "38px" : isMobile ? "24px" : undefined}
                     viewBox="0 -960 960 960"
-                    width="24px"
+                    width={isDesktop ? "38px" : isTablet ? "38px" : isMobile ? "24px" : undefined}
                     fill="currentColor"
                   >
                     <path d="M720-354ZM487-587ZM354-720l-80-80h486q33 0 56.5 23.5T840-720H354Zm366 260q13 0 21.5-9t8.5-21q0-13-8.5-21.5T720-520q-12 0-21 8.5t-9 21.5q0 12 9 21t21 9Zm156 262-76-76v-286H640v126l-80-80v-66q0-25 17.5-42.5T620-640h200q25 0 42.5 17.5T880-580v360q0 6-1 11.5t-3 10.5ZM820-28 688-160h-68q-25 0-42.5-17.5T560-220v-68L200-648v288h300v80H200q-33 0-56.5-23.5T120-360v-368l-92-92 56-56L876-84l-56 56ZM344-504ZM80-160v-80h420v80H80Z" />
                   </svg>
-                  <span className="">No devices found</span>
+                  <span className="text-black">No devices found</span>
                 </div>
               )}
             </div>
@@ -253,16 +270,53 @@ export default function FileTransferPanel() {
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <button className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50">
+                <button
+                  onClick={handleGenerateQr}
+                  className="font-semibold bg-blue-300 hover:bg-blue-400 px-2 py-1 rounded-xl border border-black/50"
+                >
                   Generate QR-code
                 </button>
                 <p className={`${hintSize} text-center text-gray-500/80`}>
                   Share by using this generated QR-code
                 </p>
+  
               </div>
             )}
           </div>
+
+          {showQr && (
+            <QrCodeDisplay
+              pairingId={pairingId}
+              payloadString={payloadString}
+              qrError={qrError}
+              isDesktop={isDesktop}
+              isTablet={isTablet}
+              isMobile={isMobile}
+              setShowQr={setShowQr}
+            />
+          )}
         </div>
+        {selectedFiles.length > 0 && (
+          <ul
+            className={`w-full bg-blue-50 shadow-[0px_0px_2px_0.25px_blue] flex flex-col gap-1 p-3 rounded-2xl overflow-y-auto 
+                ${windowWidth >= 1000 ? "h-full" : "flex-1 min-h-44"}`}
+          >
+            {selectedFiles.map((file, index) => (
+              <li
+                key={index}
+                className="text-gray-700 w-full bg-white/60 rounded-lg px-3 py-1 shadow-[0px_0px_3px_0.25px_rgba(0,0,0,0.3)]"
+              >
+                <div className="flex-1 flex gap-5 items-center min-w-0">
+                  <span className="shrink-0">{IconCategorizer(file.name)}</span>
+                  <div className="flex flex-col items-start min-w-0">
+                    <p className="font-semibold truncate w-full">{file.name}</p>
+                    <p className="text-sm">{`${(file.size / (1024 * 1024)).toFixed(2)} MB`}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="flex items-center gap-4 w-full">
         <button
