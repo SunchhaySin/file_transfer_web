@@ -8,12 +8,8 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    basicSsl(), // run the server over https (secure browser context)
   ],
   server: {
     host: true, // host the app on the local network
-    proxy: {
-      "/signal": { target: "ws://127.0.0.1:8080", ws: true },
-    }, // route the broswer https traffic to the signaling server
   },
 });
