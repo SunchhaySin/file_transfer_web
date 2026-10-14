@@ -15,5 +15,5 @@ export default defineConfig({
     proxy: {
       "/signal": { target: "ws://127.0.0.1:8080", ws: true },
     }, // route the broswer https traffic to the signaling server
-  }, 
+  },
 });

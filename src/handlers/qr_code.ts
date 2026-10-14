@@ -117,29 +117,6 @@ export function compactSdp(sdp: string): string {
     .join("\r\n");
 }
 
-// export function compactSdp(sdp: string): string {
-//   return sdp
-//     .split("\r\n")
-//     .filter((line) => {
-//       if (line.startsWith("b=")) return false;
-//       if (line.startsWith("a=rtcp-fb:")) return false;
-//       if (line.startsWith("a=fmtp:")) return false;
-//       if (line.startsWith("a=extmap:")) return false;
-//       if (line.startsWith("a=msid:")) return false;
-//       if (line.startsWith("a=ssrc:")) return false;
-//       if (line.startsWith("a=ice-options:")) return false;
-      
-//       // Keep ONLY local IPv4 host candidates
-//       if (line.startsWith("a=candidate:")) {
-//         if (!line.includes("typ host") || line.includes(":")) {
-//           return false;
-//         }
-//       }
-//       return true;
-//     })
-//     .join("\r\n");
-// }
-
 // Validates size threshold before letting React render components
 export function validateQrCapacity(text: string): void {
   if (text.length > MAX_QR_CHARS) {

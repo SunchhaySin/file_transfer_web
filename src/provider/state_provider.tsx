@@ -14,6 +14,9 @@ interface NavigationPanelState {
   setIsCheckStatus: (open: boolean) => void;
   isNamingDevice: boolean;
   setIsNamingDevice: (open: boolean) => void;
+
+  isBannerOpened:boolean;
+  setBannerOpened: (open: boolean) => void;
 };
 
 interface SelectedFilesState {
@@ -57,6 +60,9 @@ export const useStateProvider = create<AppState>((set, get) => ({
   setIsCheckStatus: (open) => set({isCheckStatus: open}),
   setIsNamingDevice: (open) => set({isNamingDevice: open}),
 
+  isBannerOpened: true, // app banner is visible on default at homescreen/dashboard
+  setBannerOpened: (open) => set({isBannerOpened: open}),
+  
   // Selected Files State
   selectedFiles: [],
   addSelectedFiles: (files) => set((state) => ({ selectedFiles: [...state.selectedFiles, ...files] })),

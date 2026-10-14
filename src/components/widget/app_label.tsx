@@ -2,9 +2,9 @@ import useScreenSize  from '../../provider/windowWidth';
 
 
 export default function AppLabel() {
-  const {windowWidth, isMobile, isTablet, isDesktop} = useScreenSize();
+  const { isTablet, isDesktop} = useScreenSize();
   return (
-    <div className={`flex ${isDesktop ? "gap-2" : "gap-1"} items-center`}>
+    <div className={`flex ${isDesktop ? "gap-2" : "gap-1"} items-center transition-all duration-300 ease-in-out`}>
       <div className={`flex gap-2 items-center bg-yellow-400 shadow-[0px_0px_4px_0.5px_yellow] ${isDesktop || isTablet ? "p-1.5" : "p-1"} rounded-full`}>
         <svg
           xmlns="http://www.w3.org/2000/svg"

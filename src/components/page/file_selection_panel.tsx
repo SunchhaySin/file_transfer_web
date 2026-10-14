@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/shallow';
 import useScreenSize from '../../provider/windowWidth';
 import { useStateProvider } from '../../provider/state_provider';
 import IconCategorizer from '../../misc/iconHelper';
-import dragAndDropImage from '../../assets/drag-drop-svgrepo-com.svg';
 
 export default function FileSelectionPanel() {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,11 +66,11 @@ export default function FileSelectionPanel() {
   return (
     <div
       className={`flex-1 flex flex-col justify-between items-center bg-white/80 rounded-3xl shadow-2xl gap-4 transition-all duration-300 ease-in-out min-h-0 w-full 
-          ${isDesktop ? "px-12 py-6" : isTablet && windowWidth >= 1100 ? "px-8 py-4" : isTablet && windowWidth < 1100 ? "px-6 py-3" : isMobile ? "p-3 mb-6" :""}
+          ${isDesktop ? "px-12 py-6" : isTablet && windowWidth >= 1100 ? "px-8 py-4" : isTablet && windowWidth < 1100 ? "px-6 py-3" : isMobile && "p-3"}
          `}
     >
       <p
-        className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "p-2 rounded-2xl text-2xl" : isTablet ? "p-2 rounded-xl v" : "p-1 rounded-lg text-lg"}`}
+        className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "py-2 px-4 rounded-2xl text-2xl" : isTablet ? "py-2 px-4 rounded-xl v" : "py-1 px-2 rounded-lg text-lg"}`}
       >
         Select File to transfer
       </p>
@@ -100,7 +99,7 @@ export default function FileSelectionPanel() {
         >
           {isDragging ? (
             <img
-              src={dragAndDropImage}
+              src="/assets/dragAndDropImage.svg"
               alt="Drag and Drop"
               className="w-10 h-10"
             />
