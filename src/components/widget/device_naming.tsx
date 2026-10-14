@@ -1,19 +1,37 @@
-import React from "react";
+import { useState } from "react";
 
 interface Properties {
   setIsNamingDevice: (status: boolean) => void;
-  setDeviceName: (name: string) => void;
-  saveDeviceName: () => void;
+  myDeviceName: string;
+  setMyDeviceName: (name: string) => void;
+  isDesktop: boolean;
+  isTablet: boolean;
 }
 
 export default function DeviceNaming({
   setIsNamingDevice,
-  setDeviceName,
-  saveDeviceName,
+  myDeviceName,
+  setMyDeviceName,
+  isDesktop,
+  isTablet,
 }: Properties) {
+
+  const [deviceName, setDeviceName] = useState(myDeviceName);
+
+  const saveDeviceName = () => {
+    if (deviceName.length === 0) {
+      alert("Name your device !!");
+      return;
+    }
+    setMyDeviceName(deviceName);
+  };
+
   return (
     <div className="fixed inset-0 flex bg-black/40 items-center justify-center z-100">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/80 flex flex-col item-center justify-center gap-6 px-10 py-4 rounded-2xl">
+      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-50
+          flex flex-col item-center justify-center gap-6 px-10 py-4 rounded-2xl w-full
+          ${(isDesktop || isTablet) ? "max-w-md" : "max-w-sm"}
+          `}>
         <div>
           <div className="relative flex items-center justify-center">
             <p className="text-center font-semibold">Name your device</p>
@@ -35,7 +53,7 @@ export default function DeviceNaming({
           <input
             className="bg-gray-200 outline-0 border border-black/80 rounded-lg pl-2 text-sm h-8"
             placeholder="Enter device name"
-            // value={myDeviceName}
+            value={deviceName}
             onChange={(e) => setDeviceName(e.target.value)}
           />
           <span className="flex gap-2 text-black/60">
@@ -56,7 +74,10 @@ export default function DeviceNaming({
         </div>
 
         <button
-          onClick={saveDeviceName}
+          onClick={() => {
+              saveDeviceName(),
+              setIsNamingDevice(false)
+            }}
           className="px-2 py-1 bg-green-400 hover:bg-green-500 rounded-xl"
         >
           Confirm

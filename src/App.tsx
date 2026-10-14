@@ -1,5 +1,4 @@
 import './index.css'
-import Dashboard from './components/page/dashboard'
 import Footer from './components/page/footer'
 import Canvas from './components/page/canvas';
 

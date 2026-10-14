@@ -1,5 +1,3 @@
-// peerDiscovery.ts - connection status + live list of other devices.
-// Import { peerDiscovery } anywhere; call peerDiscovery.start() once on your dashboard.
 import { signaling } from '../config/signaling';
 import type { Peer } from '../config/client';
 
