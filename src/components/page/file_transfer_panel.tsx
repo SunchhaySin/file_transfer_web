@@ -116,7 +116,7 @@ export default function FileTransferPanel() {
        <p
         className={`bg-blue-300 shadow-[0px_0px_4px_0.5px_blue] font-semibold ${isDesktop ? "p-2 rounded-2xl text-2xl" : isTablet ? "p-2 rounded-xl v" : "p-1 rounded-lg text-lg"}`}
       >
-        Begin the file tranfer
+        Begin the file transfer
       </p>
       {windowWidth >= 800 && <hr className="border border-black/20 w-full" />}
       <div
